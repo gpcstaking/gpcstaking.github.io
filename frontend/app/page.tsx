@@ -45,9 +45,9 @@ const ROUTER_ABI = [
 ];
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
-const ORDER_AMOUNT = 1000n * 10n ** 18n;
-const GPC_SWAP_AMOUNT = 700n * 10n ** 18n;
-const WBNB_SWAP_AMOUNT = 50n * 10n ** 18n;
+const ORDER_AMOUNT = 1n * 10n ** 18n;
+const GPC_SWAP_AMOUNT = 7n * 10n ** 17n;
+const WBNB_SWAP_AMOUNT = 5n * 10n ** 16n;
 const BPS = 10_000n;
 const USER_SWAP_SLIPPAGE_BPS = 50n; // 0.5% from the pre-signing router quote
 const LP_SLIPPAGE_BPS = 200n;
@@ -345,7 +345,7 @@ export default function Home() {
   }
 
   function approveUsdt() {
-    return runTransaction({ zh: "授权 1,000 USDT", en: "Approve 1,000 USDT" }, async signer => {
+    return runTransaction({ zh: "授权 1 USDT", en: "Approve 1 USDT" }, async signer => {
       const usdt = new Contract(USDT_ADDRESS, ERC20_ABI, signer);
       return usdt.approve(MINING_ADDRESS, ORDER_AMOUNT);
     });
@@ -439,9 +439,9 @@ export default function Home() {
         </div>
 
         <div className="tab-page" hidden={activeTab !== "order"}>
-          <div className="page-heading"><span>STAKING</span><h1>{text("GPC质押挖矿", "GPC Staking Mining")}</h1><p>{text("每次固定质押 1,000 USDT，链上自动完成分账并增加算力。", "Stake a fixed 1,000 USDT. Allocation and mining power are handled on-chain.")}</p></div>
+          <div className="page-heading"><span>STAKING</span><h1>{text("GPC质押挖矿", "GPC Staking Mining")}</h1><p>{text("测试阶段每次固定质押 1 USDT，链上自动完成分账并增加算力。", "During testing, stake a fixed 1 USDT. Allocation and mining power are handled on-chain.")}</p></div>
           <article className="order-card">
-            <div className="order-value"><span>{text("质押金额", "Stake amount")}</span><div><strong>1,000</strong><b>USDT</b></div></div>
+            <div className="order-value"><span>{text("质押金额", "Stake amount")}</span><div><strong>1</strong><b>USDT</b></div></div>
             <div className="order-receive"><span>{text("预计获得", "You receive")}</span><strong>{text("+2,000 算力", "+2,000 Power")}</strong><strong>{text("+1,000 U 推广额度", "+1,000 U Referral quota")}</strong></div>
             <div className="allocation" aria-label={text("质押资金分配", "Stake allocation")}>
               <div style={{ width: "10%" }} className="lp" />
@@ -455,7 +455,7 @@ export default function Home() {
             ) : !isBound ? (
               <button className="main-action" disabled>{text("请先绑定上级", "Bind a sponsor first")}</button>
             ) : needsApproval ? (
-              <button className="main-action" onClick={approveUsdt} disabled={busy || !isConfigured}>{text("授权 1,000 USDT", "Approve 1,000 USDT")}</button>
+              <button className="main-action" onClick={approveUsdt} disabled={busy || !isConfigured}>{text("授权 1 USDT", "Approve 1 USDT")}</button>
             ) : (
               <button className="main-action" onClick={placeOrder} disabled={busy || !isConfigured || !snapshot.oracleReady || !hasEnoughUsdt}>{text("确认质押", "Confirm staking")}</button>
             )}

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 async function render() {
@@ -30,9 +31,17 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(html, /10%.*筑 LP/);
   assert.match(html, /20%.*直推/);
   assert.match(html, /70%.*质押矿池/);
+  assert.match(html, /测试阶段每次固定质押 1 USDT/);
+  assert.doesNotMatch(html, /授权 1,000 USDT/);
   assert.doesNotMatch(html, /安全与风控|固定报单/);
   assert.doesNotMatch(html, /class="quick-actions"/);
   assert.match(html, /class="bottom-nav"/);
   assert.match(html, /role="status"/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
+
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.match(source, /const ORDER_AMOUNT = 1n \* 10n \*\* 18n/);
+  assert.match(source, /approve\(MINING_ADDRESS, ORDER_AMOUNT\)/);
+  assert.match(source, /授权 1 USDT/);
+  assert.doesNotMatch(source, /授权 1,000 USDT/);
 });

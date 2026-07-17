@@ -83,7 +83,7 @@ describe('GpcMiningCore', function () {
     };
   }
 
-  it('splits a 1,000 USDT order, adds GPC/WBNB LP and credits power', async function () {
+  it('splits a 1 USDT test order, adds GPC/WBNB LP and credits power', async function () {
     const { operation, alice, bob, usdt, router, mining, bindAndOrder } = await loadFixture(deployFixture);
 
     await bindAndOrder(alice, operation);
@@ -93,14 +93,14 @@ describe('GpcMiningCore', function () {
     expect(aliceInfo.totalPowerPurchased).to.equal(e('2000'));
     expect(aliceInfo.promotionQuota).to.equal(e('1000'));
     expect(await mining.totalPower()).to.equal(e('2000'));
-    expect(await mining.miningPoolGpc()).to.equal(e('6500'));
-    expect(await usdt.balanceOf(operation.address)).to.equal(e('250'));
-    expect(await router.lpToken().then(address => ethers.getContractAt('MockERC20', address)).then(lp => lp.balanceOf(operation.address))).to.equal(e('0.1'));
+    expect(await mining.miningPoolGpc()).to.equal(e('6.5'));
+    expect(await usdt.balanceOf(operation.address)).to.equal(e('0.25'));
+    expect(await router.lpToken().then(address => ethers.getContractAt('MockERC20', address)).then(lp => lp.balanceOf(operation.address))).to.equal(e('0.0001'));
 
     await bindAndOrder(bob, alice);
-    expect(await usdt.balanceOf(alice.address)).to.equal(e('19200')); // 20,000 - 1,000 + 200
-    expect((await mining.users(alice.address)).promotionQuota).to.equal(e('800'));
-    expect(await mining.miningPoolGpc()).to.equal(e('13000'));
+    expect(await usdt.balanceOf(alice.address)).to.equal(e('19999.2')); // 20,000 - 1 + 0.2
+    expect((await mining.users(alice.address)).promotionQuota).to.equal(e('999.8'));
+    expect(await mining.miningPoolGpc()).to.equal(e('13'));
   });
 
   it('runs behind a transparent proxy and preserves state across an upgrade', async function () {
@@ -147,11 +147,11 @@ describe('GpcMiningCore', function () {
 
     await expect(bindAndOrder(alice, operation))
       .to.emit(mining, 'OrderPlaced')
-      .withArgs(alice.address, operation.address, operation.address, e('7000'), e('6500'), e('500'), e('0.1'), e('0.1'));
-    expect(await usdt.balanceOf(operation.address)).to.equal(e('250'));
+      .withArgs(alice.address, operation.address, operation.address, e('7'), e('6.5'), e('0.5'), e('0.0001'), e('0.0001'));
+    expect(await usdt.balanceOf(operation.address)).to.equal(e('0.25'));
   });
 
-  it('calculates fixed static and small-area rewards without level differences', async function () {
+  it('calculates test-stage pool-limited static and small-area rewards without level differences', async function () {
     const { operation, alice, bob, carol, gpc, oracle, mining, bindAndOrder } = await loadFixture(deployFixture);
 
     await bindAndOrder(alice, operation);
@@ -166,17 +166,17 @@ describe('GpcMiningCore', function () {
     expect(community.effectiveSmallArea).to.equal(e('2000'));
 
     const quote = await mining.quoteRewards(alice.address);
-    expect(quote.poolLimitedMode).to.equal(false);
-    expect(quote.staticRewardUsdt).to.equal(e('5'));
-    expect(quote.communityRewardUsdt).to.equal(e('0.25'));
-    expect(quote.totalRewardUsdt).to.equal(e('5.25'));
-    expect(quote.grossGpc).to.equal(e('52.5'));
+    expect(quote.poolLimitedMode).to.equal(true);
+    expect(quote.staticRewardUsdt).to.equal(e('0.0065'));
+    expect(quote.communityRewardUsdt).to.equal(e('0.000325'));
+    expect(quote.totalRewardUsdt).to.equal(e('0.006825'));
+    expect(quote.grossGpc).to.equal(e('0.06825'));
 
     await time.increase(24 * 60 * 60);
     await expect(mining.connect(alice).withdraw()).to.emit(mining, 'Withdrawn');
-    expect(await gpc.balanceOf(alice.address)).to.equal(e('47.25'));
-    expect(await gpc.balanceOf(operation.address)).to.equal(e('5.25'));
-    expect((await mining.users(alice.address)).power).to.equal(e('1994.75'));
+    expect(await gpc.balanceOf(alice.address)).to.equal(e('0.061425'));
+    expect(await gpc.balanceOf(operation.address)).to.equal(e('0.006825'));
+    expect((await mining.users(alice.address)).power).to.equal(e('1999.993175'));
   });
 
   it('uses the 1% pool formula below the threshold and allows exactly 1% of the pool', async function () {
@@ -187,13 +187,13 @@ describe('GpcMiningCore', function () {
     await gpcPair.setReserves(e('10000'), e('1'));
     const quote = await mining.quoteRewards(alice.address);
     expect(quote.poolLimitedMode).to.equal(true);
-    expect(quote.staticRewardUsdt).to.equal(e('3.25'));
-    expect(quote.grossGpc).to.equal(e('65'));
+    expect(quote.staticRewardUsdt).to.equal(e('0.00325'));
+    expect(quote.grossGpc).to.equal(e('0.065'));
     expect(quote.grossGpc * 100n).to.equal((await mining.miningPoolGpc()));
 
     await time.increase(24 * 60 * 60);
     await mining.connect(alice).withdraw();
-    expect(await gpc.balanceOf(alice.address)).to.equal(e('58.5'));
+    expect(await gpc.balanceOf(alice.address)).to.equal(e('0.0585'));
   });
 
   it('does not accrue missed days and resets the 24-hour timer after each order', async function () {
@@ -273,7 +273,7 @@ describe('GpcMiningCore', function () {
 
     const deadline = (await time.latest()) + 300;
     await expect(
-      mining.connect(alice).placeOrder(...orderArgs(deadline, e('7001')))
+      mining.connect(alice).placeOrder(...orderArgs(deadline, e('7.001')))
     ).to.be.revertedWith('INSUFFICIENT_OUTPUT');
   });
 
@@ -283,7 +283,7 @@ describe('GpcMiningCore', function () {
 
     await expect(
       mining.connect(alice).placeOrder(
-        ...orderArgs((await time.latest()) + 300, e('6999'), e('0.099'), e('490'), e('0.098'))
+        ...orderArgs((await time.latest()) + 300, e('6.999'), e('0.000099'), e('0.49'), e('0.000098'))
       )
     ).to.emit(mining, 'OrderPlaced');
   });

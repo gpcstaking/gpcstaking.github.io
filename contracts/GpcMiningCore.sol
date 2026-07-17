@@ -15,19 +15,20 @@ import {IPancakeRouterV2} from './interfaces/IPancakeRouterV2.sol';
 
 /**
  * @title GpcMiningCore
- * @notice Fixed 1,000 USDT orders, GPC mining rewards and 30-level community accounting.
+ * @notice Fixed USDT orders, GPC mining rewards and 30-level community accounting.
  * @dev Production addresses are supplied by GpcMining. This core accepts addresses so it can be tested locally.
  */
 abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
 
-    uint256 public constant ORDER_USDT = 1_000 ether;
+    // Temporary test-stage order sizing. Restore the production values before launch.
+    uint256 public constant ORDER_USDT = 1 ether;
     uint256 public constant POWER_PER_ORDER = 2_000 ether;
     uint256 public constant PROMOTION_QUOTA_PER_ORDER = 1_000 ether;
-    uint256 public constant DIRECT_REWARD = 200 ether;
-    uint256 public constant OPERATION_SHARE = 50 ether;
-    uint256 public constant USDT_TO_GPC = 700 ether;
-    uint256 public constant USDT_TO_WBNB = 50 ether;
+    uint256 public constant DIRECT_REWARD = 0.2 ether;
+    uint256 public constant OPERATION_SHARE = 0.05 ether;
+    uint256 public constant USDT_TO_GPC = 0.7 ether;
+    uint256 public constant USDT_TO_WBNB = 0.05 ether;
 
     uint256 public constant BPS = 10_000;
     uint256 public constant FIXED_DAILY_RATE_BPS = 25; // 0.25%
@@ -217,7 +218,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     }
 
     /**
-     * @notice Places exactly one 1,000 USDT order.
+     * @notice Places exactly one 1 USDT test-stage order.
      * @param deadline A caller-chosen expiry no more than five minutes in the future.
      * @param userMinGpcOut User-quoted GPC floor; zero keeps only the contract TWAP floor.
      * @param userMinWbnbOut User-quoted WBNB floor; zero keeps only the contract TWAP floor.

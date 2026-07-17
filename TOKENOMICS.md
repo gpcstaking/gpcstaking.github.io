@@ -2,6 +2,8 @@
 
 All USDT values and computing power use 18 decimals. One order is fixed at 1,000 USDT.
 
+> Temporary testing override: the currently staged implementation uses a 1 USDT order with proportional 0.2 USDT direct, 0.05 USDT operation, 0.7 USDT GPC-swap, and 0.05 USDT WBNB-swap amounts. Power and promotion quota per order remain unchanged. Restore the production values above before launch.
+
 ## Order and distribution
 
 Each successful order adds 2,000 personal power and 1,000 promotion quota. Orders require a bound parent and have a one-minute per-user cooldown.
