@@ -444,10 +444,11 @@ export default function Home() {
             <div className="order-value"><span>{text("质押金额", "Stake amount")}</span><div><strong>1,000</strong><b>USDT</b></div></div>
             <div className="order-receive"><span>{text("预计获得", "You receive")}</span><strong>{text("+2,000 算力", "+2,000 Power")}</strong><strong>{text("+1,000 U 推广额度", "+1,000 U Referral quota")}</strong></div>
             <div className="allocation" aria-label={text("质押资金分配", "Stake allocation")}>
-              <div style={{ width: "20%" }} className="direct" /><div style={{ width: "5%" }} className="operation" />
-              <div style={{ width: "70%" }} className="buy" /><div style={{ width: "5%" }} className="lp" />
+              <div style={{ width: "10%" }} className="lp" />
+              <div style={{ width: "20%" }} className="direct" />
+              <div style={{ width: "70%" }} className="stake-pool" />
             </div>
-            <div className="fund-legend"><span><i className="direct" />{text("直推", "Referral")} 20%</span><span><i className="operation" />{text("运营", "Operations")} 5%</span><span><i className="buy" />GPC 70%</span><span><i className="lp" />WBNB 5%</span></div>
+            <div className="fund-legend"><span><i className="lp" />10% {text("筑 LP", "Build LP")}</span><span><i className="direct" />20% {text("直推", "Referral")}</span><span><i className="stake-pool" />70% {text("质押矿池", "Staking pool")}</span></div>
             <div className="wallet-row"><span>{text("USDT 余额", "USDT balance")}</span><strong>{compact(snapshot.usdtBalance, language)} USDT</strong></div>
             {!account ? (
               <button className="main-action" onClick={connectWallet} disabled={busy}>{text("连接钱包", "Connect wallet")}</button>
