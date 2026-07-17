@@ -19,7 +19,9 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>GPC Mining Protocol<\/title>/i);
+  assert.match(html, /<title>GPC Staking<\/title>/i);
+  assert.match(html, /href="\/favicon.ico"/);
+  assert.match(html, />STAKING<\/small>/);
   assert.match(html, /GPC质押挖矿/);
   assert.match(html, /我的团队/);
   assert.match(html, /今日收益/);

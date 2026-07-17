@@ -392,8 +392,8 @@ export default function Home() {
       <div className="dapp-shell" id="top">
         <header className="app-header">
           <a className="app-brand" href="#top" aria-label={text("GPC Protocol 首页", "GPC Protocol home")}>
-            <span className="app-logo">G</span>
-            <span><strong>GPC</strong><small>MINING</small></span>
+            <span className="app-logo" aria-hidden="true" />
+            <span><strong>GPC</strong><small>STAKING</small></span>
           </a>
           <div className="header-actions">
             <button className="language-toggle" onClick={toggleLanguage} aria-label={text("切换为英文", "Switch to Chinese")}>{language === "zh" ? "EN" : "中文"}</button>
