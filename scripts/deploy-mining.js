@@ -18,7 +18,17 @@ async function main() {
   const adminOwner = await deployer.getAddress();
 
   const oracle = await ethers.getContractAt('GpcSixHourOracle', process.env.ORACLE_ADDRESS);
-  if (!(await oracle.isReady())) throw new Error('Oracle is not initialized or its price is stale');
+  const oracleReady = await oracle.isReady();
+  if (!oracleReady) {
+    const lastUpdatedAt = await oracle.lastUpdatedAt();
+    const pendingFirstObservation = lastUpdatedAt === 0n;
+    if (!pendingFirstObservation || process.env.ALLOW_PENDING_ORACLE_BOOTSTRAP !== 'yes') {
+      throw new Error('Oracle is not initialized or its price is stale');
+    }
+    console.warn(
+      `WARNING: mining will be deployed before the first TWAP publication; orders stay blocked until ${await oracle.nextUpdateAt()}`
+    );
+  }
   if ((await oracle.gpc()).toLowerCase() !== GPC.toLowerCase()) throw new Error('Oracle GPC mismatch');
   if ((await oracle.wbnb()).toLowerCase() !== WBNB.toLowerCase()) throw new Error('Oracle WBNB mismatch');
   if ((await oracle.usdt()).toLowerCase() !== USDT.toLowerCase()) throw new Error('Oracle USDT mismatch');

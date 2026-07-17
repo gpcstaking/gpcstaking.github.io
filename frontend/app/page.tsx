@@ -25,10 +25,15 @@ const MINING_ABI = [
   "function miningPoolGpc() view returns (uint256)",
   "function communityPower(address) view returns (uint256 total,uint256 largestBranchPower,uint256 smallArea,uint256 effectiveSmallArea)",
   "function quoteRewards(address) view returns ((uint256 staticRewardUsdt,uint256 communityRewardUsdt,uint256 totalRewardUsdt,uint256 grossGpc,uint256 gpcPrice,uint256 poolValueUsdt,uint256 smallAreaPower,uint256 effectiveSmallAreaPower,bool poolLimitedMode))",
+  "function oracle() view returns (address)",
   "function bindReferral(address parent)",
   "function router() view returns (address)",
   "function placeOrder(uint256 deadline,uint256 userMinGpcOut,uint256 userMinWbnbOut,uint256 userMinLpGpc,uint256 userMinLpWbnb)",
   "function withdraw()",
+];
+
+const ORACLE_ABI = [
+  "function isReady() view returns (bool)",
 ];
 
 const ERC20_ABI = [
@@ -66,6 +71,7 @@ type Snapshot = {
   smallArea: bigint;
   effectiveSmallArea: bigint;
   poolLimitedMode: boolean;
+  oracleReady: boolean;
 };
 
 type AppTab = "home" | "order" | "team" | "profile";
@@ -87,6 +93,7 @@ const emptySnapshot: Snapshot = {
   smallArea: 0n,
   effectiveSmallArea: 0n,
   poolLimitedMode: false,
+  oracleReady: false,
 };
 
 declare global {
@@ -185,7 +192,7 @@ export default function Home() {
 
     const mining = new Contract(MINING_ADDRESS, MINING_ABI, activeProvider);
     const usdt = new Contract(USDT_ADDRESS, ERC20_ABI, activeProvider);
-    const [user, parent, totalPower, poolGpc, community, usdtBalance, allowance] = await Promise.all([
+    const [user, parent, totalPower, poolGpc, community, usdtBalance, allowance, oracleAddress] = await Promise.all([
       mining.users(activeAccount),
       mining.parentOf(activeAccount),
       mining.totalPower(),
@@ -193,7 +200,10 @@ export default function Home() {
       mining.communityPower(activeAccount),
       usdt.balanceOf(activeAccount),
       usdt.allowance(activeAccount, MINING_ADDRESS),
+      mining.oracle(),
     ]);
+    const oracle = new Contract(oracleAddress, ORACLE_ABI, activeProvider);
+    const oracleReady = await oracle.isReady();
 
     let reward = null;
     try {
@@ -219,9 +229,10 @@ export default function Home() {
       smallArea: community.smallArea,
       effectiveSmallArea: community.effectiveSmallArea,
       poolLimitedMode: reward?.poolLimitedMode ?? false,
+      oracleReady,
     });
     setCurrentTime(Math.floor(Date.now() / 1000));
-    setStatus("链上数据已更新");
+    setStatus(oracleReady ? "链上数据已更新" : "合约已部署，等待首次 6 小时均价发布");
   }, [isConfigured]);
 
   async function connectWallet() {
@@ -436,7 +447,7 @@ export default function Home() {
             ) : needsApproval ? (
               <button className="main-action" onClick={approveUsdt} disabled={busy || !isConfigured}>授权 USDT</button>
             ) : (
-              <button className="main-action" onClick={placeOrder} disabled={busy || !isConfigured || !hasEnoughUsdt}>确认报单</button>
+              <button className="main-action" onClick={placeOrder} disabled={busy || !isConfigured || !snapshot.oracleReady || !hasEnoughUsdt}>确认报单</button>
             )}
             <div className="protect-note"><DappIcon name="shield" size={15} /><span>6H TWAP · 成交下限保护 0.5% · 偏差限制 1%</span></div>
           </article>
@@ -472,7 +483,7 @@ export default function Home() {
             <div className="profile-assets"><div><span>USDT 余额</span><strong>{compact(snapshot.usdtBalance)}</strong></div><div><span>推广额度</span><strong>{compact(snapshot.promotionQuota)}</strong></div><div><span>个人算力</span><strong>{compact(snapshot.power)}</strong></div><div><span>下次提现</span><strong>{snapshot.nextWithdrawAt ? formatTime(snapshot.nextWithdrawAt) : "未开始"}</strong></div></div>
           </article>
           <section className="security-card">
-            <div className="security-title"><span><DappIcon name="shield" size={18} /></span><div><strong>安全与风控</strong><small>{isConfigured ? "合约已配置" : "等待合约部署"}</small></div></div>
+            <div className="security-title"><span><DappIcon name="shield" size={18} /></span><div><strong>安全与风控</strong><small>{isConfigured ? (snapshot.oracleReady ? "合约与 Oracle 已就绪" : "合约已配置 · Oracle 待更新") : "等待合约部署"}</small></div></div>
             <div className="security-items"><span><b>6H</b> TWAP 均价</span><span><b>24H</b> 提现间隔</span><span><b>1% / 5%</b> 单笔 / 全局</span></div>
             <div className="rpc-row"><span>{PRIVATE_BSC_RPC_URL ? "MEV 保护 RPC 已配置" : "MEV 保护 RPC 待配置"}</span><button onClick={configureProtectedNetwork} disabled={busy || !PRIVATE_BSC_RPC_URL}>配置</button></div>
           </section>

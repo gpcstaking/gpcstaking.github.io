@@ -23,6 +23,10 @@ The proxy separates permissions:
 - Oracle implementation: `0x1F4a4DF030d8ABfac98De21927052e060BF9DAC4`
 - Oracle ProxyAdmin: `0xcCbde183E2D5c945500CF19CFa3EFd31b877611C`
 - First oracle update: `2026-07-17 23:24:17 CST` or later
+- Mining proxy: `0x7C7C849734ea94a590266F90B5fD63D555ed3ca3`
+- Mining implementation: `0xC51049b1E959a6AEd858F13230262a555E84899f`
+- Mining ProxyAdmin: `0x22FA01523a7b681F09ed181fBB2A096d2Ca5Cb56`
+- DApp: `https://gpcstaking.github.io/`
 
 This testing deployment intentionally uses the deployer EOA as the temporary ProxyAdmin owner. Set both `ALLOW_MAINNET_DEPLOY=yes` and `ALLOW_TEMPORARY_EOA_ADMIN=yes` to use this mode. Before production operation, transfer both ProxyAdmin contracts and the mining business ownership to the approved multisig/Timelock setup.
 
