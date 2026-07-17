@@ -32,6 +32,8 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(html, /20%.*直推/);
   assert.match(html, /70%.*质押矿池/);
   assert.match(html, /测试阶段每次固定质押 1 USDT/);
+  assert.match(html, /\+2 算力/);
+  assert.match(html, /\+1 U 推广额度/);
   assert.doesNotMatch(html, /授权 1,000 USDT/);
   assert.doesNotMatch(html, /安全与风控|固定报单/);
   assert.doesNotMatch(html, /class="quick-actions"/);

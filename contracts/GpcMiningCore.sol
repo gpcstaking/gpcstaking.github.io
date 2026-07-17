@@ -23,8 +23,8 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
 
     // Temporary test-stage order sizing. Restore the production values before launch.
     uint256 public constant ORDER_USDT = 1 ether;
-    uint256 public constant POWER_PER_ORDER = 2_000 ether;
-    uint256 public constant PROMOTION_QUOTA_PER_ORDER = 1_000 ether;
+    uint256 public constant POWER_PER_ORDER = 2 ether;
+    uint256 public constant PROMOTION_QUOTA_PER_ORDER = 1 ether;
     uint256 public constant DIRECT_REWARD = 0.2 ether;
     uint256 public constant OPERATION_SHARE = 0.05 ether;
     uint256 public constant USDT_TO_GPC = 0.7 ether;

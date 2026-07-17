@@ -442,7 +442,7 @@ export default function Home() {
           <div className="page-heading"><span>STAKING</span><h1>{text("GPC质押挖矿", "GPC Staking Mining")}</h1><p>{text("测试阶段每次固定质押 1 USDT，链上自动完成分账并增加算力。", "During testing, stake a fixed 1 USDT. Allocation and mining power are handled on-chain.")}</p></div>
           <article className="order-card">
             <div className="order-value"><span>{text("质押金额", "Stake amount")}</span><div><strong>1</strong><b>USDT</b></div></div>
-            <div className="order-receive"><span>{text("预计获得", "You receive")}</span><strong>{text("+2,000 算力", "+2,000 Power")}</strong><strong>{text("+1,000 U 推广额度", "+1,000 U Referral quota")}</strong></div>
+            <div className="order-receive"><span>{text("预计获得", "You receive")}</span><strong>{text("+2 算力", "+2 Power")}</strong><strong>{text("+1 U 推广额度", "+1 U Referral quota")}</strong></div>
             <div className="allocation" aria-label={text("质押资金分配", "Stake allocation")}>
               <div style={{ width: "10%" }} className="lp" />
               <div style={{ width: "20%" }} className="direct" />
