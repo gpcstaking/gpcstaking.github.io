@@ -2,7 +2,8 @@ name: Update Rolling Oracle
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    # GitHub cron may start late, so each cloud job maintains its own five-minute loop.
+    - cron: "0 */4 * * *"
   workflow_dispatch:
 
 permissions:
@@ -15,7 +16,7 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 270
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -29,11 +30,27 @@ jobs:
       - name: Install contract dependencies
         run: npm ci
 
-      - name: Record five-minute Oracle point
+      - name: Run four-hour Oracle keeper loop
         env:
           PRIVATE_KEY: ${{ secrets.ORACLE_KEEPER_PRIVATE_KEY }}
           BSC_RPC_URL: ${{ vars.BSC_RPC_URL }}
           ORACLE_ADDRESS: ${{ vars.ORACLE_ADDRESS }}
           ALLOW_MAINNET_DEPLOY: "yes"
           KEEPER_WAIT_UNTIL_DUE: "yes"
-        run: npm run update:oracle
+        run: |
+          consecutive_failures=0
+          for iteration in $(seq 1 48); do
+            echo "Keeper iteration ${iteration}/48"
+            if npm run update:oracle; then
+              consecutive_failures=0
+            else
+              consecutive_failures=$((consecutive_failures + 1))
+              if [ "$consecutive_failures" -ge 2 ]; then
+                echo "Two consecutive Oracle updates failed"
+                exit 1
+              fi
+            fi
+            if [ "$iteration" -lt 48 ]; then
+              sleep 300
+            fi
+          done
