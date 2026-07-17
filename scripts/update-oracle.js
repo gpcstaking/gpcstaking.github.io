@@ -22,6 +22,12 @@ async function main() {
       throw new Error('Chain timestamp did not reach the scheduled Oracle update time');
     }
   }
+  const refreshedNextUpdateAt = await oracle.nextUpdateAt();
+  latestBlock = await ethers.provider.getBlock('latest');
+  if (BigInt(latestBlock.timestamp) < refreshedNextUpdateAt) {
+    console.log('Another keeper already recorded this interval; next update:', String(refreshedNextUpdateAt));
+    return;
+  }
   const transaction = await oracle.update();
   await transaction.wait();
   console.log('Oracle updated:', process.env.ORACLE_ADDRESS);
