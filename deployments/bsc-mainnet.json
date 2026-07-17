@@ -1,0 +1,20 @@
+{
+  "network": "BSC mainnet",
+  "chainId": 56,
+  "deployer": "0xB7924467cEce8FD55dA013d8cFe2333173c9C236",
+  "temporaryAdminMode": true,
+  "oracle": {
+    "proxy": "0x7c7CdA7C435776815606879390523c6486C0b0fB",
+    "implementation": "0x1F4a4DF030d8ABfac98De21927052e060BF9DAC4",
+    "proxyAdmin": "0xcCbde183E2D5c945500CF19CFa3EFd31b877611C",
+    "proxyAdminOwner": "0xB7924467cEce8FD55dA013d8cFe2333173c9C236",
+    "implementationDeploymentTx": "0x9d4c4db1e19d1d3c6826a17e08236f16e95dcde8d4938601c7bed8534a78efe1",
+    "proxyDeploymentTx": "0xb7aa5e3c5c8258fe73b3aefa44bdb281be29399a9d1b2902b5e35d3abd8993ba",
+    "firstUpdateAt": 1784301857,
+    "firstUpdateAtCst": "2026-07-17 23:24:17 CST",
+    "implementationVerified": true,
+    "proxyVerified": false,
+    "proxyVerificationNote": "Implementation verified on BscScan; standard proxy verification was blocked by the explorer API plan, while ERC-1967 slots and runtime code were verified directly on-chain."
+  },
+  "mining": null
+}

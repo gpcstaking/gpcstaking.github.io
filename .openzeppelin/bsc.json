@@ -1,0 +1,181 @@
+{
+  "manifestVersion": "3.2",
+  "proxies": [
+    {
+      "address": "0x7c7CdA7C435776815606879390523c6486C0b0fB",
+      "txHash": "0xb7aa5e3c5c8258fe73b3aefa44bdb281be29399a9d1b2902b5e35d3abd8993ba",
+      "kind": "transparent"
+    }
+  ],
+  "impls": {
+    "db97962ec0ee8f3d747e36cb76cb660b8bc5bd5d47cd93760af33893cf5074c7": {
+      "address": "0x1F4a4DF030d8ABfac98De21927052e060BF9DAC4",
+      "txHash": "0x9d4c4db1e19d1d3c6826a17e08236f16e95dcde8d4938601c7bed8534a78efe1",
+      "layout": {
+        "solcVersion": "0.8.21",
+        "storage": [
+          {
+            "label": "_initialized",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_uint8",
+            "contract": "Initializable",
+            "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:63",
+            "retypedFrom": "bool"
+          },
+          {
+            "label": "_initializing",
+            "offset": 1,
+            "slot": "0",
+            "type": "t_bool",
+            "contract": "Initializable",
+            "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:68"
+          },
+          {
+            "label": "gpc",
+            "offset": 2,
+            "slot": "0",
+            "type": "t_address",
+            "contract": "GpcSixHourOracle",
+            "src": "contracts/GpcSixHourOracle.sol:22"
+          },
+          {
+            "label": "wbnb",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_address",
+            "contract": "GpcSixHourOracle",
+            "src": "contracts/GpcSixHourOracle.sol:23"
+          },
+          {
+            "label": "usdt",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_address",
+            "contract": "GpcSixHourOracle",
+            "src": "contracts/GpcSixHourOracle.sol:24"
+          },
+          {
+            "label": "gpcWbnbPair",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_contract(IPancakePair)7159",
+            "contract": "GpcSixHourOracle",
+            "src": "contracts/GpcSixHourOracle.sol:25"
+          },
+          {
+            "label": "wbnbUsdtPair",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_contract(IPancakePair)7159",
+            "contract": "GpcSixHourOracle",
+            "src": "contracts/GpcSixHourOracle.sol:26"
+          },
+          {
+            "label": "_gpcUsesPrice0",
+            "offset": 20,
+            "slot": "4",
+            "type": "t_bool",
+            "contract": "GpcSixHourOracle",
+            "src": "contracts/GpcSixHourOracle.sol:27"
+          },
+          {
+            "label": "_wbnbUsesPrice0",
+            "offset": 21,
+            "slot": "4",
+            "type": "t_bool",
+            "contract": "GpcSixHourOracle",
+            "src": "contracts/GpcSixHourOracle.sol:28"
+          },
+          {
+            "label": "lastGpcWbnbCumulative",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_uint256",
+            "contract": "GpcSixHourOracle",
+            "src": "contracts/GpcSixHourOracle.sol:30"
+          },
+          {
+            "label": "lastWbnbUsdtCumulative",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_uint256",
+            "contract": "GpcSixHourOracle",
+            "src": "contracts/GpcSixHourOracle.sol:31"
+          },
+          {
+            "label": "lastObservationTimestamp",
+            "offset": 0,
+            "slot": "7",
+            "type": "t_uint32",
+            "contract": "GpcSixHourOracle",
+            "src": "contracts/GpcSixHourOracle.sol:32"
+          },
+          {
+            "label": "lastUpdatedAt",
+            "offset": 0,
+            "slot": "8",
+            "type": "t_uint256",
+            "contract": "GpcSixHourOracle",
+            "src": "contracts/GpcSixHourOracle.sol:33"
+          },
+          {
+            "label": "_gpcPrice",
+            "offset": 0,
+            "slot": "9",
+            "type": "t_uint256",
+            "contract": "GpcSixHourOracle",
+            "src": "contracts/GpcSixHourOracle.sol:34"
+          },
+          {
+            "label": "_bnbPrice",
+            "offset": 0,
+            "slot": "10",
+            "type": "t_uint256",
+            "contract": "GpcSixHourOracle",
+            "src": "contracts/GpcSixHourOracle.sol:35"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "11",
+            "type": "t_array(t_uint256)40_storage",
+            "contract": "GpcSixHourOracle",
+            "src": "contracts/GpcSixHourOracle.sol:38"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_array(t_uint256)40_storage": {
+            "label": "uint256[40]",
+            "numberOfBytes": "1280"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_contract(IPancakePair)7159": {
+            "label": "contract IPancakePair",
+            "numberOfBytes": "20"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint32": {
+            "label": "uint32",
+            "numberOfBytes": "4"
+          },
+          "t_uint8": {
+            "label": "uint8",
+            "numberOfBytes": "1"
+          }
+        },
+        "namespaces": {}
+      }
+    }
+  }
+}

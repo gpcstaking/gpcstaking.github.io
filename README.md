@@ -1,0 +1,67 @@
+# GPC Mining V2
+
+This repository contains a new BSC mining system and six-hour PancakeSwap TWAP oracle. Both the mining contract and oracle are deployed behind separate OpenZeppelin Transparent Proxies; the mining system intentionally does not reuse the old staking proxy storage because the new system accepts fixed USDT orders rather than variable GPC stakes.
+
+The proxy separates permissions:
+
+- `GpcMining.owner()` controls pause/unpause and unsupported-token recovery and is initialized to the mining TimelockController, not the operation wallet.
+- Each proxy has its own `ProxyAdmin`; the admins must be owned by separate TimelockController contracts with at least a 48-hour delay.
+- Both implementation constructors disable initializers so the implementation contracts cannot be taken over directly.
+
+## Mainnet constants
+
+- GPC: `0xD3c304697f63B279cd314F92c19cDBE5E5b1631A`
+- USDT: `0x55d398326f99059fF775485246999027B3197955`
+- WBNB: `0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c`
+- Pancake Router: `0x10ED43C718714eb63d5aA57B78B54704E256024E`
+- Operation wallet: `0xA04509c94567B47E1F08CF81EbEDF09F663943c9`
+
+## Current BSC deployment
+
+- Deployer and temporary upgrade owner: `0xB7924467cEce8FD55dA013d8cFe2333173c9C236`
+- Oracle proxy: `0x7c7CdA7C435776815606879390523c6486C0b0fB`
+- Oracle implementation: `0x1F4a4DF030d8ABfac98De21927052e060BF9DAC4`
+- Oracle ProxyAdmin: `0xcCbde183E2D5c945500CF19CFa3EFd31b877611C`
+- First oracle update: `2026-07-17 23:24:17 CST` or later
+
+This testing deployment intentionally uses the deployer EOA as the temporary ProxyAdmin owner. Set both `ALLOW_MAINNET_DEPLOY=yes` and `ALLOW_TEMPORARY_EOA_ADMIN=yes` to use this mode. Before production operation, transfer both ProxyAdmin contracts and the mining business ownership to the approved multisig/Timelock setup.
+
+## Local verification
+
+```bash
+npm install
+npm run compile
+npm test
+npm run test:coverage
+```
+
+## Mainnet deployment sequence
+
+Copy `.env.example` to an untracked `.env`. Set `PRIVATE_KEY`, `BSC_RPC_URL`, `BSCSCAN_API_KEY`, `ORACLE_TIMELOCK_OWNER`, and `MINING_TIMELOCK_OWNER`. The two timelocks must be different and should be controlled by separate Safe multisigs.
+
+1. Review all fixed addresses, set `ORACLE_TIMELOCK_OWNER`, then run `ALLOW_MAINNET_DEPLOY=yes npm run deploy:oracle`.
+2. Wait at least six hours.
+3. Set `ORACLE_ADDRESS` to the oracle **proxy address**, then run `ALLOW_MAINNET_DEPLOY=yes npm run update:oracle`.
+4. Set the separate `MINING_TIMELOCK_OWNER`, confirm the printed TWAPs, and run `ALLOW_MAINNET_DEPLOY=yes npm run deploy:mining`. The script validates the Oracle tokens, pairs, proxy, implementation, admin timelock, and admin separation.
+5. Record and verify both proxies, both implementations, and both ProxyAdmin contracts on BscScan.
+6. Configure the DApp with the **proxy address**, never the implementation address.
+
+## Upgrade procedure
+
+1. Make a storage-compatible implementation change and add a reinitializer only if the new version needs new state initialization. If used, set `UPGRADE_CALLDATA` to that encoded reinitializer call.
+2. Run the full test suite and OpenZeppelin storage-layout validation.
+3. For mining, set `MINING_PROXY_ADDRESS` and run `ALLOW_MAINNET_DEPLOY=yes npm run prepare-upgrade:mining`.
+4. For the oracle, keep `ORACLE_ADDRESS` set to its proxy and run `ALLOW_MAINNET_DEPLOY=yes npm run prepare-upgrade:oracle`.
+5. Review the printed new implementation, ProxyAdmin target, predecessor, salt, and delay. Submit the generated `schedule` calldata to the printed TimelockController address through its authorized proposer, wait for the delay, then submit the generated `execute` calldata to that same TimelockController. Never send `upgradeAndCall` directly from a multisig to ProxyAdmin.
+
+Never reorder, remove, or change the type of existing storage fields. New mining fields must consume slots from `GpcMiningCore.__gap`; new oracle fields must consume slots from `GpcSixHourOracle.__gap`.
+
+The oracle proxy must be updated permissionlessly every 6–12 hours. If an observation exceeds 12 hours, the update only resets the baseline and prices remain unavailable until a new six-hour observation completes. Withdrawals require both a fresh TWAP and current spot prices within the configured deviation. Aggregate withdrawals are capped at 5% of the window-opening mining pool per 24-hour window. See [TOKENOMICS.md](./TOKENOMICS.md) for the exact formulas and operational rules.
+
+## Security status
+
+Unit tests and TWAP manipulation bounds are present, but this code has not received an independent smart-contract audit. Do not fund or deploy it to mainnet until external review, fork-based integration testing, and operation-wallet key controls are complete.
+
+## DApp
+
+The mobile wallet interface is under `frontend/`. Copy `frontend/.env.example` to `frontend/.env.local`, set `NEXT_PUBLIC_MINING_ADDRESS` to the deployed **proxy address**, and optionally provide a client-safe protected BSC RPC URL. The interface supports BSC wallet switching, one-time referral binding, USDT approval, pre-signing Pancake quotes, user minimum outputs, fixed orders, reward quotes, community statistics, and withdrawals.
