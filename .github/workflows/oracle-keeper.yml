@@ -16,7 +16,7 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 8
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -36,4 +36,5 @@ jobs:
           BSC_RPC_URL: ${{ vars.BSC_RPC_URL }}
           ORACLE_ADDRESS: ${{ vars.ORACLE_ADDRESS }}
           ALLOW_MAINNET_DEPLOY: "yes"
+          KEEPER_WAIT_UNTIL_DUE: "yes"
         run: npm run update:oracle

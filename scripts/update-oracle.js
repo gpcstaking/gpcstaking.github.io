@@ -6,11 +6,21 @@ async function main() {
   if (!process.env.ORACLE_ADDRESS) throw new Error('ORACLE_ADDRESS is required');
 
   const oracle = await ethers.getContractAt('GpcMainnetOracle', process.env.ORACLE_ADDRESS);
-  const latestBlock = await ethers.provider.getBlock('latest');
+  let latestBlock = await ethers.provider.getBlock('latest');
   const nextUpdateAt = await oracle.nextUpdateAt();
   if (BigInt(latestBlock.timestamp) < nextUpdateAt) {
-    console.log('Oracle update not due until:', String(nextUpdateAt));
-    return;
+    const waitSeconds = Number(nextUpdateAt - BigInt(latestBlock.timestamp));
+    if (process.env.KEEPER_WAIT_UNTIL_DUE !== 'yes') {
+      console.log('Oracle update not due until:', String(nextUpdateAt));
+      return;
+    }
+    if (waitSeconds > 5 * 60) throw new Error('Keeper wait exceeds one observation interval');
+    console.log('Keeper waiting seconds until due:', waitSeconds);
+    await new Promise(resolve => setTimeout(resolve, (waitSeconds + 2) * 1_000));
+    latestBlock = await ethers.provider.getBlock('latest');
+    if (BigInt(latestBlock.timestamp) < nextUpdateAt) {
+      throw new Error('Chain timestamp did not reach the scheduled Oracle update time');
+    }
   }
   const transaction = await oracle.update();
   await transaction.wait();
