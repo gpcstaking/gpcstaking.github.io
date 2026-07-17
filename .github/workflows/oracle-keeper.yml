@@ -2,8 +2,7 @@ name: Update Rolling Oracle
 
 on:
   schedule:
-    # Offset from minute zero to reduce GitHub Actions cron congestion.
-    - cron: "2-57/5 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
