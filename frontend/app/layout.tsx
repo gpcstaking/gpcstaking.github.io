@@ -7,7 +7,7 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 
 export const metadata: Metadata = {
   title: "GPC Mining Protocol",
-  description: "GPC 固定报单、算力收益和社区奖励 DApp",
+  description: "GPC 质押挖矿、算力收益和社区奖励 DApp",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

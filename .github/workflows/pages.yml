@@ -33,7 +33,6 @@ jobs:
         working-directory: frontend
         env:
           VITE_MINING_ADDRESS: ${{ vars.MINING_ADDRESS }}
-          VITE_PRIVATE_BSC_RPC_URL: ${{ vars.PRIVATE_BSC_RPC_URL }}
         run: npm run build:pages
       - name: Configure Pages
         uses: actions/configure-pages@v5

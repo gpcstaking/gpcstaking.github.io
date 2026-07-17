@@ -1,6 +1,6 @@
 # GPC Mining DApp
 
-Set `NEXT_PUBLIC_MINING_ADDRESS` in `.env.local` to the verified `GpcMining` deployment. An optional `NEXT_PUBLIC_PRIVATE_BSC_RPC_URL` exposes a wallet configuration action for a client-safe protected RPC endpoint; never place a secret API key in a public frontend variable.
+Set `NEXT_PUBLIC_MINING_ADDRESS` in `.env.local` to the verified `GpcMining` deployment.
 
 ```bash
 npm install

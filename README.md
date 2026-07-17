@@ -69,4 +69,4 @@ Unit tests and TWAP manipulation bounds are present, but this code has not recei
 
 ## DApp
 
-The mobile wallet interface is under `frontend/`. Copy `frontend/.env.example` to `frontend/.env.local`, set `NEXT_PUBLIC_MINING_ADDRESS` to the deployed **proxy address**, and optionally provide a client-safe protected BSC RPC URL. The interface supports BSC wallet switching, one-time referral binding, USDT approval, pre-signing Pancake quotes, user minimum outputs, fixed orders, reward quotes, community statistics, and withdrawals.
+The mobile wallet interface is under `frontend/`. Copy `frontend/.env.example` to `frontend/.env.local` and set `NEXT_PUBLIC_MINING_ADDRESS` to the deployed **proxy address**. The interface supports BSC wallet switching, mandatory first-entry referral binding, exact 1,000 USDT approval, pre-signing Pancake quotes, user minimum outputs, GPC staking, reward quotes, community statistics, and withdrawals.

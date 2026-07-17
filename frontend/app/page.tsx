@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BrowserProvider,
   Contract,
-  MaxUint256,
   formatEther,
   isAddress,
 } from "ethers";
@@ -12,7 +11,6 @@ import {
 const viteEnv = import.meta.env as Record<string, string | undefined>;
 const nodeEnv = typeof process === "undefined" ? undefined : process.env;
 const MINING_ADDRESS = viteEnv.VITE_MINING_ADDRESS ?? nodeEnv?.NEXT_PUBLIC_MINING_ADDRESS ?? "";
-const PRIVATE_BSC_RPC_URL = viteEnv.VITE_PRIVATE_BSC_RPC_URL ?? nodeEnv?.NEXT_PUBLIC_PRIVATE_BSC_RPC_URL ?? "";
 const USDT_ADDRESS = "0x55d398326f99059fF775485246999027B3197955";
 const GPC_ADDRESS = "0xD3c304697f63B279cd314F92c19cDBE5E5b1631A";
 const WBNB_ADDRESS = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c";
@@ -75,6 +73,8 @@ type Snapshot = {
 };
 
 type AppTab = "home" | "order" | "team" | "profile";
+type Language = "zh" | "en";
+type LocalizedStatus = { zh: string; en: string };
 
 const emptySnapshot: Snapshot = {
   power: 0n,
@@ -106,18 +106,18 @@ declare global {
   }
 }
 
-function compact(value: bigint, maximumFractionDigits = 2) {
+function compact(value: bigint, language: Language, maximumFractionDigits = 2) {
   const number = Number(formatEther(value));
-  return new Intl.NumberFormat("zh-CN", { maximumFractionDigits }).format(number);
+  return new Intl.NumberFormat(language === "zh" ? "zh-CN" : "en-US", { maximumFractionDigits }).format(number);
 }
 
 function shortAddress(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
-function formatTime(timestamp: number) {
-  if (!timestamp) return "报单后开始计时";
-  return new Intl.DateTimeFormat("zh-CN", {
+function formatTime(timestamp: number, language: Language) {
+  if (!timestamp) return language === "zh" ? "报单后开始计时" : "Starts after staking";
+  return new Intl.DateTimeFormat(language === "zh" ? "zh-CN" : "en-US", {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
@@ -149,21 +149,41 @@ export default function Home() {
   const [account, setAccount] = useState("");
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot);
   const [parentInput, setParentInput] = useState("");
-  const [status, setStatus] = useState("连接钱包后读取链上数据");
+  const [status, setStatus] = useState<LocalizedStatus>({
+    zh: "连接钱包后读取链上数据",
+    en: "Connect your wallet to load on-chain data",
+  });
   const [busy, setBusy] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [activeTab, setActiveTab] = useState<AppTab>("home");
+  const [language, setLanguage] = useState<Language>("zh");
+
+  const text = (zh: string, en: string) => language === "zh" ? zh : en;
 
   const isConfigured = isAddress(MINING_ADDRESS);
   const isBound = snapshot.parent !== ZERO_ADDRESS;
   const needsApproval = snapshot.allowance < ORDER_AMOUNT;
   const hasEnoughUsdt = snapshot.usdtBalance >= ORDER_AMOUNT;
   const canWithdraw = snapshot.nextWithdrawAt !== 0 && currentTime >= snapshot.nextWithdrawAt;
+  const bindingRequired = Boolean(account) && !isBound;
 
   const contractLink = useMemo(
-    () => isConfigured ? `https://bscscan.com/address/${MINING_ADDRESS}` : "https://bscscan.com",
-    [isConfigured],
+    () => `https://bscscan.com/token/${GPC_ADDRESS}`,
+    [],
   );
+
+  useEffect(() => {
+    const savedLanguage = window.localStorage.getItem("gpc-language");
+    if (savedLanguage !== "zh" && savedLanguage !== "en") return;
+    const restoreLanguage = window.setTimeout(() => setLanguage(savedLanguage), 0);
+    return () => window.clearTimeout(restoreLanguage);
+  }, []);
+
+  function toggleLanguage() {
+    const nextLanguage: Language = language === "zh" ? "en" : "zh";
+    setLanguage(nextLanguage);
+    window.localStorage.setItem("gpc-language", nextLanguage);
+  }
 
   useEffect(() => {
     const ethereum = window.ethereum;
@@ -174,7 +194,7 @@ export default function Home() {
       setAccount("");
       setSnapshot(emptySnapshot);
       setCurrentTime(0);
-      setStatus("钱包账户或网络已变更，请重新连接");
+      setStatus({ zh: "钱包账户或网络已变更，请重新连接", en: "Wallet account or network changed. Please reconnect." });
     };
     ethereum.on("accountsChanged", invalidateSession);
     ethereum.on("chainChanged", invalidateSession);
@@ -186,7 +206,7 @@ export default function Home() {
 
   const refresh = useCallback(async (activeProvider: BrowserProvider, activeAccount: string) => {
     if (!isConfigured) {
-      setStatus("等待配置已部署的挖矿合约地址");
+      setStatus({ zh: "等待配置已部署的挖矿合约地址", en: "Waiting for the deployed mining contract address" });
       return;
     }
 
@@ -232,12 +252,14 @@ export default function Home() {
       oracleReady,
     });
     setCurrentTime(Math.floor(Date.now() / 1000));
-    setStatus(oracleReady ? "链上数据已更新" : "合约已部署，等待首次 6 小时均价发布");
+    setStatus(oracleReady
+      ? { zh: "链上数据已更新", en: "On-chain data updated" }
+      : { zh: "合约已部署，Oracle 暂未就绪", en: "Contract deployed; Oracle is not ready yet" });
   }, [isConfigured]);
 
   async function connectWallet() {
     if (!window.ethereum) {
-      setStatus("未检测到钱包，请安装 MetaMask 或兼容钱包");
+      setStatus({ zh: "未检测到钱包，请安装 MetaMask 或兼容钱包", en: "No wallet detected. Install MetaMask or a compatible wallet." });
       return;
     }
     try {
@@ -250,7 +272,7 @@ export default function Home() {
             params: [{ chainId: BSC_CHAIN_ID }],
           });
         } catch {
-          await addBscNetwork(PRIVATE_BSC_RPC_URL || "https://bsc-dataseed.binance.org");
+          await addBscNetwork();
         }
       }
       const nextProvider = new BrowserProvider(window.ethereum);
@@ -261,61 +283,47 @@ export default function Home() {
       setAccount(nextAccount);
       await refresh(nextProvider, nextAccount);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "钱包连接失败");
+      const message = error instanceof Error ? error.message : "Wallet connection failed";
+      setStatus({ zh: message, en: message });
     } finally {
       setBusy(false);
     }
   }
 
-  async function addBscNetwork(rpcUrl: string) {
+  async function addBscNetwork() {
     if (!window.ethereum) throw new Error("未检测到兼容钱包");
     await window.ethereum.request({
       method: "wallet_addEthereumChain",
       params: [{
         chainId: BSC_CHAIN_ID,
-        chainName: PRIVATE_BSC_RPC_URL ? "BSC Mainnet · Protected RPC" : "BNB Smart Chain Mainnet",
+        chainName: "BNB Smart Chain Mainnet",
         nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 },
-        rpcUrls: [rpcUrl],
+        rpcUrls: ["https://bsc-dataseed.binance.org"],
         blockExplorerUrls: ["https://bscscan.com"],
       }],
     });
   }
 
-  async function configureProtectedNetwork() {
-    if (!PRIVATE_BSC_RPC_URL) {
-      setStatus("部署方尚未配置公开可用的BSC私有交易RPC");
-      return;
-    }
-    try {
-      setBusy(true);
-      await addBscNetwork(PRIVATE_BSC_RPC_URL);
-      setStatus("已请求钱包添加保护RPC；请在钱包网络设置中确认当前RPC");
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "保护RPC配置失败");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function runTransaction(label: string, action: (signer: Awaited<ReturnType<BrowserProvider["getSigner"]>>) => Promise<{ wait: () => Promise<unknown> }>) {
+  async function runTransaction(label: LocalizedStatus, action: (signer: Awaited<ReturnType<BrowserProvider["getSigner"]>>) => Promise<{ wait: () => Promise<unknown> }>) {
     if (!provider || !account) return connectWallet();
     try {
       setBusy(true);
       const chainId = await window.ethereum?.request({ method: "eth_chainId" });
-      if (chainId !== BSC_CHAIN_ID) throw new Error("当前网络不是 BSC Mainnet，请重新连接钱包");
-      setStatus(`${label}：请在钱包中确认`);
+      if (chainId !== BSC_CHAIN_ID) throw new Error(text("当前网络不是 BSC Mainnet，请重新连接钱包", "Wrong network. Reconnect on BSC Mainnet."));
+      setStatus({ zh: `${label.zh}：请在钱包中确认`, en: `${label.en}: confirm in your wallet` });
       const signer = await provider.getSigner();
       const signerAddress = await signer.getAddress();
       if (signerAddress.toLowerCase() !== account.toLowerCase()) {
-        throw new Error("钱包账户已变更，请重新连接后再操作");
+        throw new Error(text("钱包账户已变更，请重新连接后再操作", "Wallet account changed. Reconnect before continuing."));
       }
       const transaction = await action(signer);
-      setStatus(`${label}：等待链上确认`);
+      setStatus({ zh: `${label.zh}：等待链上确认`, en: `${label.en}: waiting for confirmation` });
       await transaction.wait();
       await refresh(provider, account);
-      setStatus(`${label}成功`);
+      setStatus({ zh: `${label.zh}成功`, en: `${label.en} successful` });
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : `${label}失败`);
+      const message = error instanceof Error ? error.message : `${label.en} failed`;
+      setStatus({ zh: message, en: message });
     } finally {
       setBusy(false);
     }
@@ -323,24 +331,28 @@ export default function Home() {
 
   function bindReferral() {
     if (!isAddress(parentInput)) {
-      setStatus("请输入有效的上级钱包地址");
+      setStatus({ zh: "请输入有效的上级钱包地址", en: "Enter a valid sponsor wallet address" });
       return;
     }
-    return runTransaction("绑定上级", async signer => {
+    return runTransaction({ zh: "绑定上级", en: "Bind sponsor" }, async signer => {
       const mining = new Contract(MINING_ADDRESS, MINING_ABI, signer);
+      const sponsorParent = await mining.parentOf(parentInput);
+      if (sponsorParent === ZERO_ADDRESS) {
+        throw new Error(text("无效地址：该钱包不在 GPC 推荐网络中", "Invalid address: this wallet is not in the GPC referral network"));
+      }
       return mining.bindReferral(parentInput);
     });
   }
 
   function approveUsdt() {
-    return runTransaction("授权 USDT", async signer => {
+    return runTransaction({ zh: "授权 1,000 USDT", en: "Approve 1,000 USDT" }, async signer => {
       const usdt = new Contract(USDT_ADDRESS, ERC20_ABI, signer);
-      return usdt.approve(MINING_ADDRESS, MaxUint256);
+      return usdt.approve(MINING_ADDRESS, ORDER_AMOUNT);
     });
   }
 
   function placeOrder() {
-    return runTransaction("报单", async signer => {
+    return runTransaction({ zh: "GPC 质押", en: "GPC staking" }, async signer => {
       const mining = new Contract(MINING_ADDRESS, MINING_ABI, signer);
       const routerAddress = await mining.router();
       const pancakeRouter = new Contract(routerAddress, ROUTER_ABI, provider);
@@ -360,13 +372,17 @@ export default function Home() {
   }
 
   function withdraw() {
-    return runTransaction("提现", async signer => {
+    return runTransaction({ zh: "提现", en: "Claim" }, async signer => {
       const mining = new Contract(MINING_ADDRESS, MINING_ABI, signer);
       return mining.withdraw();
     });
   }
 
   function switchTab(tab: AppTab) {
+    if (bindingRequired) {
+      setStatus({ zh: "请先绑定有效的上级地址", en: "Bind a valid sponsor before continuing" });
+      return;
+    }
     setActiveTab(tab);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -375,127 +391,133 @@ export default function Home() {
     <main className="mobile-stage">
       <div className="dapp-shell" id="top">
         <header className="app-header">
-          <a className="app-brand" href="#top" aria-label="GPC Protocol 首页">
+          <a className="app-brand" href="#top" aria-label={text("GPC Protocol 首页", "GPC Protocol home")}>
             <span className="app-logo">G</span>
             <span><strong>GPC</strong><small>MINING</small></span>
           </a>
           <div className="header-actions">
-            <span className="chain-chip"><i />BSC</span>
+            <button className="language-toggle" onClick={toggleLanguage} aria-label={text("切换为英文", "Switch to Chinese")}>{language === "zh" ? "EN" : "中文"}</button>
             <button className="connect-pill" onClick={connectWallet} disabled={busy}>
               <DappIcon name="wallet" size={15} />
-              {account ? shortAddress(account) : "连接钱包"}
+              {account ? shortAddress(account) : text("连接钱包", "Connect")}
             </button>
           </div>
         </header>
 
         <div className="status-strip" role="status">
           <span className="live-dot" />
-          <span>{status}</span>
+          <span>{status[language]}</span>
           <button onClick={() => provider && account && refresh(provider, account)} disabled={!account || busy}><DappIcon name="refresh" size={14} /></button>
         </div>
 
         <div className="tab-page" hidden={activeTab !== "home"}>
-          <section className="balance-card" aria-label="今日收益">
+          <section className="balance-card" aria-label={text("今日收益", "Today's rewards")}>
             <div className="balance-topline">
-              <span>今日可领取</span>
-              <span className="mode-chip">{snapshot.poolLimitedMode ? "矿池模式" : "固定模式"}</span>
+              <span>{text("今日可领取", "Claimable today")}</span>
+              <span className="mode-chip">{snapshot.poolLimitedMode ? text("矿池模式", "Pool mode") : text("固定模式", "Fixed mode")}</span>
             </div>
-            <div className="main-balance"><strong>{compact(snapshot.grossGpc, 4)}</strong><span>GPC</span></div>
-            <p>≈ {compact(snapshot.totalReward, 4)} USDT</p>
+            <div className="main-balance"><strong>{compact(snapshot.grossGpc, language, 4)}</strong><span>GPC</span></div>
+            <p>≈ {compact(snapshot.totalReward, language, 4)} USDT</p>
             <div className="yield-split">
-              <div><span>静态收益</span><strong>{compact(snapshot.staticReward, 4)} U</strong></div>
+              <div><span>{text("静态收益", "Static reward")}</span><strong>{compact(snapshot.staticReward, language, 4)} U</strong></div>
               <i />
-              <div><span>社区收益</span><strong>{compact(snapshot.communityReward, 4)} U</strong></div>
+              <div><span>{text("社区收益", "Community reward")}</span><strong>{compact(snapshot.communityReward, language, 4)} U</strong></div>
             </div>
             <button className="claim-button" onClick={withdraw} disabled={busy || !account || !canWithdraw || snapshot.totalReward === 0n}>
-              <DappIcon name="withdraw" size={18} />领取收益
+              <DappIcon name="withdraw" size={18} />{text("领取收益", "Claim rewards")}
             </button>
-            <div className="countdown-line"><span>下次可领取</span><strong>{formatTime(snapshot.nextWithdrawAt)}</strong></div>
+            <div className="countdown-line"><span>{text("下次可领取", "Next claim")}</span><strong>{formatTime(snapshot.nextWithdrawAt, language)}</strong></div>
             <span className="card-glow" />
           </section>
 
-          <section className="quick-actions" aria-label="快捷操作">
-            <button onClick={() => switchTab("order")}><span><DappIcon name="order" /></span><small>报单</small></button>
-            <button onClick={withdraw} disabled={busy || !account || !canWithdraw || snapshot.totalReward === 0n}><span><DappIcon name="withdraw" /></span><small>提现</small></button>
-            <button onClick={() => switchTab("team")}><span><DappIcon name="link" /></span><small>绑定</small></button>
-            <button onClick={() => provider && account && refresh(provider, account)} disabled={!account || busy}><span><DappIcon name="refresh" /></span><small>刷新</small></button>
+          <section className="quick-actions" aria-label={text("快捷操作", "Quick actions")}>
+            <button onClick={() => switchTab("order")}><span><DappIcon name="order" /></span><small>{text("质押", "Stake")}</small></button>
+            <button onClick={withdraw} disabled={busy || !account || !canWithdraw || snapshot.totalReward === 0n}><span><DappIcon name="withdraw" /></span><small>{text("提现", "Claim")}</small></button>
+            <button onClick={() => switchTab("team")}><span><DappIcon name="team" /></span><small>{text("团队", "Team")}</small></button>
+            <button onClick={() => provider && account && refresh(provider, account)} disabled={!account || busy}><span><DappIcon name="refresh" /></span><small>{text("刷新", "Refresh")}</small></button>
           </section>
 
-          <section className="metrics-grid" aria-label="账户概览">
-            <article><span>个人算力</span><strong>{compact(snapshot.power)}</strong><small>POWER</small></article>
-            <article><span>今日预计</span><strong>{compact(snapshot.totalReward, 4)}</strong><small>USDT</small></article>
-            <article><span>全网总算力</span><strong>{compact(snapshot.totalPower)}</strong><small>POWER</small></article>
-            <article><span>订单矿池</span><strong>{compact(snapshot.poolGpc)}</strong><small>GPC</small></article>
+          <section className="metrics-grid" aria-label={text("账户概览", "Account overview")}>
+            <article><span>{text("个人算力", "Personal power")}</span><strong>{compact(snapshot.power, language)}</strong><small>POWER</small></article>
+            <article><span>{text("今日预计", "Estimated today")}</span><strong>{compact(snapshot.totalReward, language, 4)}</strong><small>USDT</small></article>
+            <article><span>{text("全网总算力", "Network power")}</span><strong>{compact(snapshot.totalPower, language)}</strong><small>POWER</small></article>
+            <article><span>{text("订单矿池", "Mining pool")}</span><strong>{compact(snapshot.poolGpc, language)}</strong><small>GPC</small></article>
           </section>
         </div>
 
         <div className="tab-page" hidden={activeTab !== "order"}>
-          <div className="page-heading"><span>ORDER</span><h1>固定报单</h1><p>每单固定 1,000 USDT，链上自动完成分账并增加算力。</p></div>
+          <div className="page-heading"><span>STAKING</span><h1>{text("GPC质押挖矿", "GPC Staking Mining")}</h1><p>{text("每次固定质押 1,000 USDT，链上自动完成分账并增加算力。", "Stake a fixed 1,000 USDT. Allocation and mining power are handled on-chain.")}</p></div>
           <article className="order-card">
-            <div className="order-value"><span>报单金额</span><div><strong>1,000</strong><b>USDT</b></div></div>
-            <div className="order-receive"><span>预计获得</span><strong>+2,000 算力</strong><strong>+1,000 U 推广额度</strong></div>
-            <div className="allocation" aria-label="报单资金分配">
+            <div className="order-value"><span>{text("质押金额", "Stake amount")}</span><div><strong>1,000</strong><b>USDT</b></div></div>
+            <div className="order-receive"><span>{text("预计获得", "You receive")}</span><strong>{text("+2,000 算力", "+2,000 Power")}</strong><strong>{text("+1,000 U 推广额度", "+1,000 U Referral quota")}</strong></div>
+            <div className="allocation" aria-label={text("质押资金分配", "Stake allocation")}>
               <div style={{ width: "20%" }} className="direct" /><div style={{ width: "5%" }} className="operation" />
               <div style={{ width: "70%" }} className="buy" /><div style={{ width: "5%" }} className="lp" />
             </div>
-            <div className="fund-legend"><span><i className="direct" />直推 20%</span><span><i className="operation" />运营 5%</span><span><i className="buy" />GPC 70%</span><span><i className="lp" />WBNB 5%</span></div>
-            <div className="wallet-row"><span>USDT 余额</span><strong>{compact(snapshot.usdtBalance)} USDT</strong></div>
+            <div className="fund-legend"><span><i className="direct" />{text("直推", "Referral")} 20%</span><span><i className="operation" />{text("运营", "Operations")} 5%</span><span><i className="buy" />GPC 70%</span><span><i className="lp" />WBNB 5%</span></div>
+            <div className="wallet-row"><span>{text("USDT 余额", "USDT balance")}</span><strong>{compact(snapshot.usdtBalance, language)} USDT</strong></div>
             {!account ? (
-              <button className="main-action" onClick={connectWallet} disabled={busy}>连接钱包</button>
+              <button className="main-action" onClick={connectWallet} disabled={busy}>{text("连接钱包", "Connect wallet")}</button>
             ) : !isBound ? (
-              <button className="main-action" onClick={() => switchTab("team")}>请先绑定上级</button>
+              <button className="main-action" disabled>{text("请先绑定上级", "Bind a sponsor first")}</button>
             ) : needsApproval ? (
-              <button className="main-action" onClick={approveUsdt} disabled={busy || !isConfigured}>授权 USDT</button>
+              <button className="main-action" onClick={approveUsdt} disabled={busy || !isConfigured}>{text("授权 1,000 USDT", "Approve 1,000 USDT")}</button>
             ) : (
-              <button className="main-action" onClick={placeOrder} disabled={busy || !isConfigured || !snapshot.oracleReady || !hasEnoughUsdt}>确认报单</button>
+              <button className="main-action" onClick={placeOrder} disabled={busy || !isConfigured || !snapshot.oracleReady || !hasEnoughUsdt}>{text("确认质押", "Confirm staking")}</button>
             )}
-            <div className="protect-note"><DappIcon name="shield" size={15} /><span>5MIN 观测 · 实时滚动 6H · 不足 6H 自动降级</span></div>
+            <div className="protect-note"><DappIcon name="shield" size={15} /><span>{text("5分钟观测 · 实时滚动6小时 · 不足6小时自动降级", "5-min observations · Live rolling 6H · Automatic fallback")}</span></div>
           </article>
           <article className="order-info-card">
-            <div><span>报单间隔</span><strong>1 分钟</strong></div><div><span>个人算力</span><strong>{compact(snapshot.power)}</strong></div><div><span>推广额度</span><strong>{compact(snapshot.promotionQuota)} U</strong></div>
+            <div><span>{text("质押间隔", "Stake interval")}</span><strong>{text("1 分钟", "1 minute")}</strong></div><div><span>{text("个人算力", "Personal power")}</span><strong>{compact(snapshot.power, language)}</strong></div><div><span>{text("推广额度", "Referral quota")}</span><strong>{compact(snapshot.promotionQuota, language)} U</strong></div>
           </article>
         </div>
 
         <div className="tab-page" hidden={activeTab !== "team"}>
-          <div className="page-heading"><span>COMMUNITY</span><h1>我的团队</h1><p>统计 30 层推荐关系，自动计算小区有效算力与社区奖励。</p></div>
+          <div className="page-heading"><span>COMMUNITY</span><h1>{text("我的团队", "My Team")}</h1><p>{text("统计 30 层推荐关系，自动计算小区有效算力与社区奖励。", "Tracks 30 referral levels and calculates effective small-area power and community rewards.")}</p></div>
           <article className="community-hero">
-            <span>今日社区收益</span><strong>{compact(snapshot.communityReward, 4)} <small>USDT</small></strong><p>小区有效算力日收益的 5%</p>
+            <span>{text("今日社区收益", "Community reward today")}</span><strong>{compact(snapshot.communityReward, language, 4)} <small>USDT</small></strong><p>{text("小区有效算力日收益的 5%", "5% of effective small-area daily rewards")}</p>
           </article>
           <article className="community-card">
-            <div className="community-stats"><div><span>小区算力</span><strong>{compact(snapshot.smallArea)}</strong></div><div><span>有效小区</span><strong>{compact(snapshot.effectiveSmallArea)}</strong></div><div><span>奖励比例</span><strong>5%</strong></div></div>
+            <div className="community-stats"><div><span>{text("小区算力", "Small-area power")}</span><strong>{compact(snapshot.smallArea, language)}</strong></div><div><span>{text("有效小区", "Effective area")}</span><strong>{compact(snapshot.effectiveSmallArea, language)}</strong></div><div><span>{text("奖励比例", "Reward rate")}</span><strong>5%</strong></div></div>
             {isBound ? (
-              <a className="parent-row" href={`https://bscscan.com/address/${snapshot.parent}`} target="_blank" rel="noreferrer"><span>我的上级</span><strong>{shortAddress(snapshot.parent)}</strong><DappIcon name="chevron" size={16} /></a>
+              <a className="parent-row" href={`https://bscscan.com/address/${snapshot.parent}`} target="_blank" rel="noreferrer"><span>{text("我的上级", "My sponsor")}</span><strong>{shortAddress(snapshot.parent)}</strong><DappIcon name="chevron" size={16} /></a>
             ) : (
-              <div className="mobile-bind-form">
-                <label htmlFor="parent">绑定上级地址</label>
-                <div><input id="parent" value={parentInput} onChange={event => setParentInput(event.target.value)} placeholder="输入 0x 钱包地址" /><button onClick={bindReferral} disabled={busy || !account || !isConfigured}>绑定</button></div>
-                <small>关系绑定后不可更改，上级须已在推荐网络中。</small>
-              </div>
+              <div className="team-connect-note">{text("连接钱包后查看团队信息", "Connect your wallet to view team data")}</div>
             )}
           </article>
-          <div className="burn-note"><DappIcon name="shield" size={16} /><div><strong>社区收益烧伤规则</strong><span>有效小区算力最高为个人算力的 5 倍，超出部分不计入奖励。</span></div></div>
+          <div className="burn-note"><DappIcon name="shield" size={16} /><div><strong>{text("社区收益烧伤规则", "Community reward cap")}</strong><span>{text("有效小区算力最高为个人算力的 5 倍，超出部分不计入奖励。", "Effective small-area power is capped at 5× personal power; excess power earns no reward.")}</span></div></div>
         </div>
 
         <div className="tab-page" hidden={activeTab !== "profile"}>
-          <div className="page-heading"><span>ACCOUNT</span><h1>我的账户</h1><p>管理钱包资产、推广额度及协议安全设置。</p></div>
+          <div className="page-heading"><span>ACCOUNT</span><h1>{text("我的账户", "My Account")}</h1><p>{text("查看钱包资产、推广额度和个人算力。", "View wallet assets, referral quota, and personal mining power.")}</p></div>
           <article className="profile-card">
-            <div className="profile-wallet"><span><DappIcon name="wallet" size={20} /></span><div><small>当前钱包</small><strong>{account ? shortAddress(account) : "尚未连接"}</strong></div><button onClick={connectWallet} disabled={busy}>{account ? "切换" : "连接"}</button></div>
-            <div className="profile-assets"><div><span>USDT 余额</span><strong>{compact(snapshot.usdtBalance)}</strong></div><div><span>推广额度</span><strong>{compact(snapshot.promotionQuota)}</strong></div><div><span>个人算力</span><strong>{compact(snapshot.power)}</strong></div><div><span>下次提现</span><strong>{snapshot.nextWithdrawAt ? formatTime(snapshot.nextWithdrawAt) : "未开始"}</strong></div></div>
+            <div className="profile-wallet"><span><DappIcon name="wallet" size={20} /></span><div><small>{text("当前钱包", "Current wallet")}</small><strong>{account ? shortAddress(account) : text("尚未连接", "Not connected")}</strong></div><button onClick={connectWallet} disabled={busy}>{account ? text("切换", "Switch") : text("连接", "Connect")}</button></div>
+            <div className="profile-assets"><div><span>{text("USDT 余额", "USDT balance")}</span><strong>{compact(snapshot.usdtBalance, language)}</strong></div><div><span>{text("推广额度", "Referral quota")}</span><strong>{compact(snapshot.promotionQuota, language)}</strong></div><div><span>{text("个人算力", "Personal power")}</span><strong>{compact(snapshot.power, language)}</strong></div><div><span>{text("下次提现", "Next claim")}</span><strong>{snapshot.nextWithdrawAt ? formatTime(snapshot.nextWithdrawAt, language) : text("未开始", "Not started")}</strong></div></div>
           </article>
-          <section className="security-card">
-            <div className="security-title"><span><DappIcon name="shield" size={18} /></span><div><strong>安全与风控</strong><small>{isConfigured ? (snapshot.oracleReady ? "合约与 Oracle 已就绪" : "合约已配置 · Oracle 待更新") : "等待合约部署"}</small></div></div>
-            <div className="security-items"><span><b>6H</b> TWAP 均价</span><span><b>24H</b> 提现间隔</span><span><b>1% / 5%</b> 单笔 / 全局</span></div>
-            <div className="rpc-row"><span>{PRIVATE_BSC_RPC_URL ? "MEV 保护 RPC 已配置" : "MEV 保护 RPC 待配置"}</span><button onClick={configureProtectedNetwork} disabled={busy || !PRIVATE_BSC_RPC_URL}>配置</button></div>
-          </section>
-          <a className="contract-link" href={contractLink} target="_blank" rel="noreferrer">在 BscScan 查看合约 <DappIcon name="chevron" size={15} /></a>
+          <a className="contract-link" href={contractLink} target="_blank" rel="noreferrer">{text("查看 GPC 代币合约", "View GPC token contract")} <DappIcon name="chevron" size={15} /></a>
         </div>
 
-        <nav className="bottom-nav" aria-label="主导航">
-          <button className={activeTab === "home" ? "active" : ""} onClick={() => switchTab("home")}><DappIcon name="home" /><span>首页</span></button>
-          <button className={activeTab === "order" ? "active" : ""} onClick={() => switchTab("order")}><DappIcon name="order" /><span>报单</span></button>
-          <button className={activeTab === "team" ? "active" : ""} onClick={() => switchTab("team")}><DappIcon name="team" /><span>团队</span></button>
-          <button className={activeTab === "profile" ? "active" : ""} onClick={() => switchTab("profile")}><DappIcon name="user" /><span>我的</span></button>
+        <nav className="bottom-nav" aria-label={text("主导航", "Main navigation")}>
+          <button className={activeTab === "home" ? "active" : ""} onClick={() => switchTab("home")}><DappIcon name="home" /><span>{text("首页", "Home")}</span></button>
+          <button className={activeTab === "order" ? "active" : ""} onClick={() => switchTab("order")}><DappIcon name="order" /><span>{text("质押", "Stake")}</span></button>
+          <button className={activeTab === "team" ? "active" : ""} onClick={() => switchTab("team")}><DappIcon name="team" /><span>{text("团队", "Team")}</span></button>
+          <button className={activeTab === "profile" ? "active" : ""} onClick={() => switchTab("profile")}><DappIcon name="user" /><span>{text("我的", "Account")}</span></button>
         </nav>
+
+        {bindingRequired && (
+          <div className="binding-gate" role="dialog" aria-modal="true" aria-labelledby="binding-title">
+            <div className="binding-modal">
+              <span className="binding-mark"><DappIcon name="link" size={24} /></span>
+              <small>GPC REFERRAL</small>
+              <h2 id="binding-title">{text("绑定上级", "Bind Your Sponsor")}</h2>
+              <p>{text("首次进入必须绑定有效上级。关系写入链上后不可修改。", "A valid sponsor is required on first entry. This on-chain relationship cannot be changed.")}</p>
+              <label htmlFor="binding-parent">{text("上级钱包地址", "Sponsor wallet address")}</label>
+              <input id="binding-parent" value={parentInput} onChange={event => setParentInput(event.target.value.trim())} placeholder="0x..." autoComplete="off" spellCheck={false} />
+              <button onClick={bindReferral} disabled={busy || !isConfigured}>{busy ? text("验证并处理中…", "Validating…") : text("验证地址并绑定", "Validate and bind")}</button>
+              <div className="binding-lock"><DappIcon name="shield" size={15} />{text("未完成绑定前无法进入其他页面", "Other pages remain locked until binding is complete")}</div>
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );
