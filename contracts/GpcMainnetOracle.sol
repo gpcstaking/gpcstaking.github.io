@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.21;
 
-import {GpcSixHourOracle} from './GpcSixHourOracle.sol';
+import {GpcRollingSixHourOracle} from './GpcRollingSixHourOracle.sol';
 import {GpcMainnetAddresses} from './GpcMainnetAddresses.sol';
 
-contract GpcMainnetOracle is GpcSixHourOracle {
+contract GpcMainnetOracle is GpcRollingSixHourOracle {
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -17,5 +17,6 @@ contract GpcMainnetOracle is GpcSixHourOracle {
             GpcMainnetAddresses.WBNB,
             GpcMainnetAddresses.USDT
         );
+        _initializeRollingFromLegacy();
     }
 }

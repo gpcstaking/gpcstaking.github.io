@@ -24,15 +24,15 @@ abstract contract GpcSixHourOracle is Initializable, IGpcPriceOracle {
     address public usdt;
     IPancakePair public gpcWbnbPair;
     IPancakePair public wbnbUsdtPair;
-    bool private _gpcUsesPrice0;
-    bool private _wbnbUsesPrice0;
+    bool internal _gpcUsesPrice0;
+    bool internal _wbnbUsesPrice0;
 
     uint256 public lastGpcWbnbCumulative;
     uint256 public lastWbnbUsdtCumulative;
     uint32 public lastObservationTimestamp;
     uint256 public lastUpdatedAt;
-    uint256 private _gpcPrice;
-    uint256 private _bnbPrice;
+    uint256 internal _gpcPrice;
+    uint256 internal _bnbPrice;
 
     // Reserved storage slots for future oracle upgrades.
     uint256[40] private __gap;
@@ -96,7 +96,7 @@ abstract contract GpcSixHourOracle is Initializable, IGpcPriceOracle {
     /**
      * @notice Finalizes a TWAP over the elapsed interval. Anyone may keep the oracle updated.
      */
-    function update() external {
+    function update() external virtual {
         (uint256 currentGpcCumulative, uint32 currentTimestamp) = _currentCumulative(
             gpcWbnbPair,
             _gpcUsesPrice0
@@ -142,25 +142,25 @@ abstract contract GpcSixHourOracle is Initializable, IGpcPriceOracle {
         emit OracleUpdated(block.timestamp, elapsed, gpcInUsdt, wbnbInUsdt);
     }
 
-    function price() external view returns (uint256) {
+    function price() external view virtual returns (uint256) {
         _requireFresh();
         return _gpcPrice;
     }
 
-    function bnbPrice() external view returns (uint256) {
+    function bnbPrice() external view virtual returns (uint256) {
         _requireFresh();
         return _bnbPrice;
     }
 
-    function isReady() external view returns (bool) {
+    function isReady() external view virtual returns (bool) {
         return lastUpdatedAt != 0 && block.timestamp <= lastUpdatedAt + MAX_STALENESS;
     }
 
-    function nextUpdateAt() external view returns (uint256) {
+    function nextUpdateAt() external view virtual returns (uint256) {
         return uint256(lastObservationTimestamp) + PERIOD;
     }
 
-    function _requireFresh() internal view {
+    function _requireFresh() internal view virtual {
         if (lastUpdatedAt == 0) revert PriceUnavailable();
         if (block.timestamp > lastUpdatedAt + MAX_STALENESS) revert PriceStale();
     }
@@ -168,6 +168,7 @@ abstract contract GpcSixHourOracle is Initializable, IGpcPriceOracle {
     function _currentCumulative(IPancakePair pair, bool usePrice0)
         internal
         view
+        virtual
         returns (uint256 cumulative, uint32 blockTimestamp)
     {
         cumulative = usePrice0 ? pair.price0CumulativeLast() : pair.price1CumulativeLast();

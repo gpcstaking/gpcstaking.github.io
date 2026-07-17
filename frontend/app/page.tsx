@@ -449,7 +449,7 @@ export default function Home() {
             ) : (
               <button className="main-action" onClick={placeOrder} disabled={busy || !isConfigured || !snapshot.oracleReady || !hasEnoughUsdt}>确认报单</button>
             )}
-            <div className="protect-note"><DappIcon name="shield" size={15} /><span>6H TWAP · 成交下限保护 0.5% · 偏差限制 1%</span></div>
+            <div className="protect-note"><DappIcon name="shield" size={15} /><span>5MIN 观测 · 实时滚动 6H · 不足 6H 自动降级</span></div>
           </article>
           <article className="order-info-card">
             <div><span>报单间隔</span><strong>1 分钟</strong></div><div><span>个人算力</span><strong>{compact(snapshot.power)}</strong></div><div><span>推广额度</span><strong>{compact(snapshot.promotionQuota)} U</strong></div>

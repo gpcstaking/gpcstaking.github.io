@@ -25,8 +25,19 @@ contract MockPair is IPancakePair {
     }
 
     function setReserves(uint112 reserve0_, uint112 reserve1_) external {
+        _accumulate();
         _reserve0 = reserve0_;
         _reserve1 = reserve1_;
-        _blockTimestampLast = uint32(block.timestamp);
+    }
+
+    function _accumulate() private {
+        uint32 currentTimestamp = uint32(block.timestamp);
+        uint32 elapsed;
+        unchecked {
+            elapsed = currentTimestamp - _blockTimestampLast;
+            price0CumulativeLast += ((uint256(_reserve1) << 112) / _reserve0) * elapsed;
+            price1CumulativeLast += ((uint256(_reserve0) << 112) / _reserve1) * elapsed;
+        }
+        _blockTimestampLast = currentTimestamp;
     }
 }
