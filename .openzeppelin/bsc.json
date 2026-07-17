@@ -281,7 +281,7 @@
             "label": "usdt",
             "offset": 0,
             "slot": "251",
-            "type": "t_contract(IERC20)1667",
+            "type": "t_contract(IERC20)1080",
             "contract": "GpcMiningCore",
             "src": "contracts/GpcMiningCore.sol:71"
           },
@@ -289,7 +289,7 @@
             "label": "gpc",
             "offset": 0,
             "slot": "252",
-            "type": "t_contract(IERC20)1667",
+            "type": "t_contract(IERC20)1080",
             "contract": "GpcMiningCore",
             "src": "contracts/GpcMiningCore.sol:72"
           },
@@ -297,7 +297,7 @@
             "label": "wbnb",
             "offset": 0,
             "slot": "253",
-            "type": "t_contract(IERC20)1667",
+            "type": "t_contract(IERC20)1080",
             "contract": "GpcMiningCore",
             "src": "contracts/GpcMiningCore.sol:73"
           },
@@ -305,7 +305,7 @@
             "label": "router",
             "offset": 0,
             "slot": "254",
-            "type": "t_contract(IPancakeRouterV2)7206",
+            "type": "t_contract(IPancakeRouterV2)7321",
             "contract": "GpcMiningCore",
             "src": "contracts/GpcMiningCore.sol:74"
           },
@@ -313,7 +313,7 @@
             "label": "oracle",
             "offset": 0,
             "slot": "255",
-            "type": "t_contract(IGpcPriceOracle)7115",
+            "type": "t_contract(IGpcPriceOracle)7230",
             "contract": "GpcMiningCore",
             "src": "contracts/GpcMiningCore.sol:75"
           },
@@ -321,7 +321,7 @@
             "label": "gpcWbnbPair",
             "offset": 0,
             "slot": "256",
-            "type": "t_contract(IPancakePair)7159",
+            "type": "t_contract(IPancakePair)7274",
             "contract": "GpcMiningCore",
             "src": "contracts/GpcMiningCore.sol:76"
           },
@@ -329,7 +329,7 @@
             "label": "wbnbUsdtPair",
             "offset": 0,
             "slot": "257",
-            "type": "t_contract(IPancakePair)7159",
+            "type": "t_contract(IPancakePair)7274",
             "contract": "GpcMiningCore",
             "src": "contracts/GpcMiningCore.sol:77"
           },
@@ -369,7 +369,7 @@
             "label": "users",
             "offset": 0,
             "slot": "262",
-            "type": "t_mapping(t_address,t_struct(UserInfo)3544_storage)",
+            "type": "t_mapping(t_address,t_struct(UserInfo)2905_storage)",
             "contract": "GpcMiningCore",
             "src": "contracts/GpcMiningCore.sol:84"
           },
@@ -487,19 +487,19 @@
             "label": "bool",
             "numberOfBytes": "1"
           },
-          "t_contract(IERC20)1667": {
+          "t_contract(IERC20)1080": {
             "label": "contract IERC20",
             "numberOfBytes": "20"
           },
-          "t_contract(IGpcPriceOracle)7115": {
+          "t_contract(IGpcPriceOracle)7230": {
             "label": "contract IGpcPriceOracle",
             "numberOfBytes": "20"
           },
-          "t_contract(IPancakePair)7159": {
+          "t_contract(IPancakePair)7274": {
             "label": "contract IPancakePair",
             "numberOfBytes": "20"
           },
-          "t_contract(IPancakeRouterV2)7206": {
+          "t_contract(IPancakeRouterV2)7321": {
             "label": "contract IPancakeRouterV2",
             "numberOfBytes": "20"
           },
@@ -515,7 +515,7 @@
             "label": "mapping(address => mapping(address => uint256))",
             "numberOfBytes": "32"
           },
-          "t_mapping(t_address,t_struct(UserInfo)3544_storage)": {
+          "t_mapping(t_address,t_struct(UserInfo)2905_storage)": {
             "label": "mapping(address => struct GpcMiningCore.UserInfo)",
             "numberOfBytes": "32"
           },
@@ -527,7 +527,7 @@
             "label": "mapping(address => uint8)",
             "numberOfBytes": "32"
           },
-          "t_struct(UserInfo)3544_storage": {
+          "t_struct(UserInfo)2905_storage": {
             "label": "struct GpcMiningCore.UserInfo",
             "members": [
               {
@@ -801,6 +801,409 @@
           "t_uint32": {
             "label": "uint32",
             "numberOfBytes": "4"
+          },
+          "t_uint8": {
+            "label": "uint8",
+            "numberOfBytes": "1"
+          }
+        },
+        "namespaces": {}
+      }
+    },
+    "a0c9f435b4ce789f31cc2f84721094052073c23df4573ec58835d561f7e002a9": {
+      "address": "0xc71E4258adbd70caA769133FB1665CeD164B6099",
+      "txHash": "0x883f3d2473642e787dc99e8bfe2e27b7387333caaa5ab9ef7e272926525e1713",
+      "layout": {
+        "solcVersion": "0.8.21",
+        "storage": [
+          {
+            "label": "_initialized",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_uint8",
+            "contract": "Initializable",
+            "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:63",
+            "retypedFrom": "bool"
+          },
+          {
+            "label": "_initializing",
+            "offset": 1,
+            "slot": "0",
+            "type": "t_bool",
+            "contract": "Initializable",
+            "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:68"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_array(t_uint256)50_storage",
+            "contract": "ContextUpgradeable",
+            "src": "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol:40"
+          },
+          {
+            "label": "_owner",
+            "offset": 0,
+            "slot": "51",
+            "type": "t_address",
+            "contract": "OwnableUpgradeable",
+            "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:22"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "52",
+            "type": "t_array(t_uint256)49_storage",
+            "contract": "OwnableUpgradeable",
+            "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:94"
+          },
+          {
+            "label": "_pendingOwner",
+            "offset": 0,
+            "slot": "101",
+            "type": "t_address",
+            "contract": "Ownable2StepUpgradeable",
+            "src": "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol:21"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "102",
+            "type": "t_array(t_uint256)49_storage",
+            "contract": "Ownable2StepUpgradeable",
+            "src": "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol:70"
+          },
+          {
+            "label": "_paused",
+            "offset": 0,
+            "slot": "151",
+            "type": "t_bool",
+            "contract": "PausableUpgradeable",
+            "src": "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol:29"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "152",
+            "type": "t_array(t_uint256)49_storage",
+            "contract": "PausableUpgradeable",
+            "src": "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol:116"
+          },
+          {
+            "label": "_status",
+            "offset": 0,
+            "slot": "201",
+            "type": "t_uint256",
+            "contract": "ReentrancyGuardUpgradeable",
+            "src": "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol:38"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "202",
+            "type": "t_array(t_uint256)49_storage",
+            "contract": "ReentrancyGuardUpgradeable",
+            "src": "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol:88"
+          },
+          {
+            "label": "usdt",
+            "offset": 0,
+            "slot": "251",
+            "type": "t_contract(IERC20)1080",
+            "contract": "GpcMiningCore",
+            "src": "contracts/GpcMiningCore.sol:72"
+          },
+          {
+            "label": "gpc",
+            "offset": 0,
+            "slot": "252",
+            "type": "t_contract(IERC20)1080",
+            "contract": "GpcMiningCore",
+            "src": "contracts/GpcMiningCore.sol:73"
+          },
+          {
+            "label": "wbnb",
+            "offset": 0,
+            "slot": "253",
+            "type": "t_contract(IERC20)1080",
+            "contract": "GpcMiningCore",
+            "src": "contracts/GpcMiningCore.sol:74"
+          },
+          {
+            "label": "router",
+            "offset": 0,
+            "slot": "254",
+            "type": "t_contract(IPancakeRouterV2)5861",
+            "contract": "GpcMiningCore",
+            "src": "contracts/GpcMiningCore.sol:75"
+          },
+          {
+            "label": "oracle",
+            "offset": 0,
+            "slot": "255",
+            "type": "t_contract(IGpcPriceOracle)5770",
+            "contract": "GpcMiningCore",
+            "src": "contracts/GpcMiningCore.sol:76"
+          },
+          {
+            "label": "gpcWbnbPair",
+            "offset": 0,
+            "slot": "256",
+            "type": "t_contract(IPancakePair)5814",
+            "contract": "GpcMiningCore",
+            "src": "contracts/GpcMiningCore.sol:77"
+          },
+          {
+            "label": "wbnbUsdtPair",
+            "offset": 0,
+            "slot": "257",
+            "type": "t_contract(IPancakePair)5814",
+            "contract": "GpcMiningCore",
+            "src": "contracts/GpcMiningCore.sol:78"
+          },
+          {
+            "label": "operationWallet",
+            "offset": 0,
+            "slot": "258",
+            "type": "t_address",
+            "contract": "GpcMiningCore",
+            "src": "contracts/GpcMiningCore.sol:79"
+          },
+          {
+            "label": "referralRoot",
+            "offset": 0,
+            "slot": "259",
+            "type": "t_address",
+            "contract": "GpcMiningCore",
+            "src": "contracts/GpcMiningCore.sol:80"
+          },
+          {
+            "label": "totalPower",
+            "offset": 0,
+            "slot": "260",
+            "type": "t_uint256",
+            "contract": "GpcMiningCore",
+            "src": "contracts/GpcMiningCore.sol:82"
+          },
+          {
+            "label": "miningPoolGpc",
+            "offset": 0,
+            "slot": "261",
+            "type": "t_uint256",
+            "contract": "GpcMiningCore",
+            "src": "contracts/GpcMiningCore.sol:83"
+          },
+          {
+            "label": "users",
+            "offset": 0,
+            "slot": "262",
+            "type": "t_mapping(t_address,t_struct(UserInfo)2868_storage)",
+            "contract": "GpcMiningCore",
+            "src": "contracts/GpcMiningCore.sol:85"
+          },
+          {
+            "label": "parentOf",
+            "offset": 0,
+            "slot": "263",
+            "type": "t_mapping(t_address,t_address)",
+            "contract": "GpcMiningCore",
+            "src": "contracts/GpcMiningCore.sol:86"
+          },
+          {
+            "label": "referralDepth",
+            "offset": 0,
+            "slot": "264",
+            "type": "t_mapping(t_address,t_uint8)",
+            "contract": "GpcMiningCore",
+            "src": "contracts/GpcMiningCore.sol:87"
+          },
+          {
+            "label": "_directReferrals",
+            "offset": 0,
+            "slot": "265",
+            "type": "t_mapping(t_address,t_array(t_address)dyn_storage)",
+            "contract": "GpcMiningCore",
+            "src": "contracts/GpcMiningCore.sol:88"
+          },
+          {
+            "label": "teamPower",
+            "offset": 0,
+            "slot": "266",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "GpcMiningCore",
+            "src": "contracts/GpcMiningCore.sol:91"
+          },
+          {
+            "label": "branchPower",
+            "offset": 0,
+            "slot": "267",
+            "type": "t_mapping(t_address,t_mapping(t_address,t_uint256))",
+            "contract": "GpcMiningCore",
+            "src": "contracts/GpcMiningCore.sol:92"
+          },
+          {
+            "label": "_branchHeaps",
+            "offset": 0,
+            "slot": "268",
+            "type": "t_mapping(t_address,t_array(t_address)dyn_storage)",
+            "contract": "GpcMiningCore",
+            "src": "contracts/GpcMiningCore.sol:95"
+          },
+          {
+            "label": "_heapIndexPlusOne",
+            "offset": 0,
+            "slot": "269",
+            "type": "t_mapping(t_address,t_mapping(t_address,t_uint256))",
+            "contract": "GpcMiningCore",
+            "src": "contracts/GpcMiningCore.sol:96"
+          },
+          {
+            "label": "withdrawWindowStartedAt",
+            "offset": 0,
+            "slot": "270",
+            "type": "t_uint256",
+            "contract": "GpcMiningCore",
+            "src": "contracts/GpcMiningCore.sol:98"
+          },
+          {
+            "label": "withdrawWindowPoolBase",
+            "offset": 0,
+            "slot": "271",
+            "type": "t_uint256",
+            "contract": "GpcMiningCore",
+            "src": "contracts/GpcMiningCore.sol:99"
+          },
+          {
+            "label": "withdrawnGpcInWindow",
+            "offset": 0,
+            "slot": "272",
+            "type": "t_uint256",
+            "contract": "GpcMiningCore",
+            "src": "contracts/GpcMiningCore.sol:100"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "273",
+            "type": "t_array(t_uint256)37_storage",
+            "contract": "GpcMiningCore",
+            "src": "contracts/GpcMiningCore.sol:103"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_array(t_address)dyn_storage": {
+            "label": "address[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_uint256)37_storage": {
+            "label": "uint256[37]",
+            "numberOfBytes": "1184"
+          },
+          "t_array(t_uint256)49_storage": {
+            "label": "uint256[49]",
+            "numberOfBytes": "1568"
+          },
+          "t_array(t_uint256)50_storage": {
+            "label": "uint256[50]",
+            "numberOfBytes": "1600"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_contract(IERC20)1080": {
+            "label": "contract IERC20",
+            "numberOfBytes": "20"
+          },
+          "t_contract(IGpcPriceOracle)5770": {
+            "label": "contract IGpcPriceOracle",
+            "numberOfBytes": "20"
+          },
+          "t_contract(IPancakePair)5814": {
+            "label": "contract IPancakePair",
+            "numberOfBytes": "20"
+          },
+          "t_contract(IPancakeRouterV2)5861": {
+            "label": "contract IPancakeRouterV2",
+            "numberOfBytes": "20"
+          },
+          "t_mapping(t_address,t_address)": {
+            "label": "mapping(address => address)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_array(t_address)dyn_storage)": {
+            "label": "mapping(address => address[])",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_mapping(t_address,t_uint256))": {
+            "label": "mapping(address => mapping(address => uint256))",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_struct(UserInfo)2868_storage)": {
+            "label": "mapping(address => struct GpcMiningCore.UserInfo)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_uint256)": {
+            "label": "mapping(address => uint256)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_uint8)": {
+            "label": "mapping(address => uint8)",
+            "numberOfBytes": "32"
+          },
+          "t_struct(UserInfo)2868_storage": {
+            "label": "struct GpcMiningCore.UserInfo",
+            "members": [
+              {
+                "label": "power",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "totalPowerPurchased",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "promotionQuota",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "lastOrderAt",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "nextWithdrawAt",
+                "type": "t_uint64",
+                "offset": 8,
+                "slot": "3"
+              },
+              {
+                "label": "inactivityStartedAt",
+                "type": "t_uint64",
+                "offset": 16,
+                "slot": "3"
+              }
+            ],
+            "numberOfBytes": "128"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
           },
           "t_uint8": {
             "label": "uint8",
