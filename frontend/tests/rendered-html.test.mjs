@@ -26,6 +26,7 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(html, /aria-label="切换为英文">EN</);
   assert.match(html, /查看 GPC 代币合约/);
   assert.doesNotMatch(html, /安全与风控|固定报单/);
+  assert.doesNotMatch(html, /class="quick-actions"/);
   assert.match(html, /class="bottom-nav"/);
   assert.match(html, /role="status"/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);

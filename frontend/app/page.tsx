@@ -430,13 +430,6 @@ export default function Home() {
             <span className="card-glow" />
           </section>
 
-          <section className="quick-actions" aria-label={text("快捷操作", "Quick actions")}>
-            <button onClick={() => switchTab("order")}><span><DappIcon name="order" /></span><small>{text("质押", "Stake")}</small></button>
-            <button onClick={withdraw} disabled={busy || !account || !canWithdraw || snapshot.totalReward === 0n}><span><DappIcon name="withdraw" /></span><small>{text("提现", "Claim")}</small></button>
-            <button onClick={() => switchTab("team")}><span><DappIcon name="team" /></span><small>{text("团队", "Team")}</small></button>
-            <button onClick={() => provider && account && refresh(provider, account)} disabled={!account || busy}><span><DappIcon name="refresh" /></span><small>{text("刷新", "Refresh")}</small></button>
-          </section>
-
           <section className="metrics-grid" aria-label={text("账户概览", "Account overview")}>
             <article><span>{text("个人算力", "Personal power")}</span><strong>{compact(snapshot.power, language)}</strong><small>POWER</small></article>
             <article><span>{text("今日预计", "Estimated today")}</span><strong>{compact(snapshot.totalReward, language, 4)}</strong><small>USDT</small></article>
