@@ -250,9 +250,13 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         uint256 userMinLpGpc,
         uint256 userMinLpWbnb
     ) internal {
-        if (msg.sender == referralRoot) revert RootCannotOrder();
         address parent = parentOf[msg.sender];
-        if (parent == address(0) || parent == address(this)) revert ReferralRequired();
+        // Root eligibility is determined only by referral topology. The root's
+        // sentinel parent is this proxy, regardless of which wallet is used for operations.
+        bool isRootOrder = parent == address(this);
+        if (!isRootOrder && (parent == address(0) || parent == address(this))) {
+            revert ReferralRequired();
+        }
         if (deadline < block.timestamp || deadline > block.timestamp + MAX_DEADLINE_WINDOW) {
             revert InvalidDeadline();
         }
@@ -272,10 +276,12 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         }
 
         address rewardRecipient = operationWallet;
-        UserInfo storage parentInfo = users[parent];
-        if (parentInfo.promotionQuota >= DIRECT_REWARD) {
-            parentInfo.promotionQuota -= DIRECT_REWARD;
-            rewardRecipient = parent;
+        if (!isRootOrder) {
+            UserInfo storage parentInfo = users[parent];
+            if (parentInfo.promotionQuota >= DIRECT_REWARD) {
+                parentInfo.promotionQuota -= DIRECT_REWARD;
+                rewardRecipient = parent;
+            }
         }
         usdt.safeTransfer(rewardRecipient, DIRECT_REWARD);
         usdt.safeTransfer(operationWallet, OPERATION_SHARE);

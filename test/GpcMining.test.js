@@ -103,6 +103,35 @@ describe('GpcMiningCore', function () {
     expect(await mining.miningPoolGpc()).to.equal(e('13'));
   });
 
+  it('allows the referral-root node to order based on topology and keeps its sponsorless share in operations', async function () {
+    const { operation, usdt, mining } = await loadFixture(deployFixture);
+
+    await usdt.mint(operation.address, e('10'));
+    await usdt.connect(operation).approve(mining.target, e('1'));
+
+    await expect(
+      mining.connect(operation).placeOrder(...orderArgs((await time.latest()) + 300))
+    ).to.emit(mining, 'OrderPlaced')
+      .withArgs(
+        operation.address,
+        mining.target,
+        operation.address,
+        e('7'),
+        e('6.5'),
+        e('0.5'),
+        e('0.0001'),
+        e('0.0001')
+      );
+
+    const rootInfo = await mining.users(operation.address);
+    expect(rootInfo.power).to.equal(e('2'));
+    expect(rootInfo.promotionQuota).to.equal(e('1'));
+    expect(await usdt.balanceOf(operation.address)).to.equal(e('9.25'));
+    expect(await mining.totalPower()).to.equal(e('2'));
+    expect(await mining.teamPower(operation.address)).to.equal(0);
+    expect(await mining.expiryQueueSize()).to.equal(1);
+  });
+
   it('runs behind a transparent proxy and preserves state across an upgrade', async function () {
     const { deployer, operation, alice, usdt, gpc, wbnb, router, oracle, mining, bindAndOrder } = await loadFixture(deployFixture);
 
