@@ -211,7 +211,17 @@ a { color: inherit; text-decoration: none; }
 .ecosystem-game-card::after { content: ""; position: absolute; width: 150px; height: 150px; right: -85px; top: -80px; border-radius: 50%; background: var(--lime); filter: blur(54px); opacity: .1; }
 .ecosystem-kicker { position: relative; z-index: 1; color: var(--lime); font-family: var(--font-geist-mono), monospace; font-size: 10px; font-weight: 800; letter-spacing: .18em; }
 .ecosystem-game-card h2 { position: relative; z-index: 1; margin: 10px 0 14px; font-size: 22px; line-height: 1.3; letter-spacing: -.025em; }
-.ecosystem-game-card p { position: relative; z-index: 1; margin: 0; color: #a0aaa5; font-size: 14px; line-height: 1.9; text-align: justify; }
+.ecosystem-intro { position: relative; z-index: 1; margin: 0; color: #aeb8b3; font-size: 14px; line-height: 1.75; }
+.ecosystem-rate-card { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 5px; margin-top: 17px; padding: 15px 16px; border: 1px solid rgba(201,255,82,.2); border-radius: 15px; background: linear-gradient(135deg, rgba(201,255,82,.11), rgba(201,255,82,.035)); }
+.ecosystem-rate-card span { color: #8d9992; font-family: var(--font-geist-mono), monospace; font-size: 9px; font-weight: 750; letter-spacing: .12em; }
+.ecosystem-rate-card strong { color: var(--lime); font-family: var(--font-geist-mono), monospace; font-size: 21px; letter-spacing: -.03em; }
+.ecosystem-rate-card small { color: #7f8a84; font-size: 11px; }
+.ecosystem-feature-list { position: relative; z-index: 1; display: grid; gap: 9px; margin-top: 12px; }
+.ecosystem-feature-item { display: grid; grid-template-columns: 30px minmax(0,1fr); gap: 11px; padding: 13px; border: 1px solid rgba(255,255,255,.065); border-radius: 14px; background: rgba(4,8,6,.3); }
+.ecosystem-feature-item > span { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 8px; background: rgba(201,255,82,.08); color: var(--lime); font-family: var(--font-geist-mono), monospace; font-size: 9px; font-weight: 800; }
+.ecosystem-feature-item strong { display: block; margin: 2px 0 5px; color: #dce5e0; font-size: 13px; letter-spacing: .01em; }
+.ecosystem-feature-item p { margin: 0; color: #89948e; font-size: 12px; line-height: 1.65; }
+.ecosystem-closing { position: relative; z-index: 1; margin: 15px 2px 0; color: #a0aaa5; font-size: 13px; line-height: 1.75; }
 .enter-game-button { position: relative; z-index: 1; width: 100%; height: 50px; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 20px; border-radius: 13px; background: var(--lime); color: #0b100d; font-size: 15px; font-weight: 850; box-shadow: 0 12px 30px rgba(201,255,82,.12); }
 
 .bottom-nav { position: fixed; z-index: 20; left: 50%; bottom: 0; width: min(100%, 430px); height: 76px; display: grid; grid-template-columns: repeat(4, 1fr); padding: 9px 10px max(9px, env(safe-area-inset-bottom)); transform: translateX(-50%); border-top: 1px solid rgba(255,255,255,.08); background: rgba(10,14,12,.93); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }

@@ -840,9 +840,35 @@ export default function Home() {
           <article className="ecosystem-game-card">
             <span className="ecosystem-kicker">GPC LEGEND</span>
             <h2>{text("GPC首个链游—GPC传奇", "GPC's First Blockchain Game — GPC Legend")}</h2>
-            <p>{text(
-              "GPC传奇是全球首款道具交易一体化的区块链生态链游，底层基于去中心化代币GPC运行。GPC 总量恒定且交易过程中持续销毁，打造极具稀缺价值。GPC传奇恒定充值规则：1GPC=10元宝，链上协议写死永远无法修改，所有玩家充值的GPC全部打入黑洞销毁，进一步缩减流通量。GPC价值提升，账号、装备道具的价值也会同步上涨，游戏内道具支持直接售卖兑换GPC。通缩机制持续赋能生态，保障每一位参与者的权益，打造全员共利的良性链游环境，点击下方进入游戏即刻开启全新冒险之旅！",
-              "GPC Legend is the world's first blockchain ecosystem game with integrated item trading, powered by the decentralized GPC token. GPC has a fixed supply and is continuously burned through transactions, creating lasting scarcity. Its recharge rule is permanently fixed on-chain at 1 GPC = 10 ingots and cannot be changed. Every GPC used by players for recharge is sent to the burn address, further reducing circulation. As GPC grows in value, game accounts, equipment, and items can appreciate as well, while in-game items can be sold directly for GPC. This deflationary model continuously supports the ecosystem, protects participants, and builds a healthy game economy where everyone can benefit. Enter the game below and begin your new adventure now!"
+            <p className="ecosystem-intro">{text(
+              "GPC传奇是全球首款道具交易一体化的区块链生态链游，底层基于去中心化代币 GPC 运行，让游戏资产真正进入链上价值体系。",
+              "GPC Legend is the world's first blockchain ecosystem game with integrated item trading. Powered by the decentralized GPC token, it brings game assets into an on-chain value system."
+            )}</p>
+
+            <div className="ecosystem-rate-card">
+              <span>{text("链上恒定充值规则", "PERMANENT ON-CHAIN RATE")}</span>
+              <strong>1 GPC = 10 {text("元宝", "INGOTS")}</strong>
+              <small>{text("协议永久固定，无法修改", "Fixed permanently by the protocol")}</small>
+            </div>
+
+            <div className="ecosystem-feature-list">
+              <section className="ecosystem-feature-item">
+                <span>01</span>
+                <div><strong>{text("游戏资产自由流通", "TRADEABLE GAME ASSETS")}</strong><p>{text("账号、装备和道具共同构成游戏资产体系；游戏内道具支持直接出售并兑换 GPC。", "Accounts, equipment, and items form a connected game economy, with in-game items directly tradeable for GPC.")}</p></div>
+              </section>
+              <section className="ecosystem-feature-item">
+                <span>02</span>
+                <div><strong>{text("玩家充值全部销毁", "EVERY RECHARGE IS BURNED")}</strong><p>{text("所有用于充值的 GPC 都会进入黑洞地址，持续减少市场流通量。", "Every GPC used for recharge is sent to the burn address, continuously reducing circulating supply.")}</p></div>
+              </section>
+              <section className="ecosystem-feature-item">
+                <span>03</span>
+                <div><strong>{text("通缩机制持续赋能", "DEFLATION POWERS THE ECOSYSTEM")}</strong><p>{text("GPC 总量恒定，并在交易与充值过程中持续销毁，让代币、账号及装备道具形成长期价值联动。", "GPC has a fixed supply and is continuously burned through transactions and recharge, connecting the long-term value of the token, accounts, equipment, and items.")}</p></div>
+              </section>
+            </div>
+
+            <p className="ecosystem-closing">{text(
+              "通缩机制持续赋能生态，打造参与者共同受益的良性链游环境。点击下方进入游戏，即刻开启全新冒险之旅！",
+              "This deflationary model supports a healthy game economy designed for shared ecosystem growth. Enter the game below and begin your new adventure."
             )}</p>
             <a className="enter-game-button" href="http://cq.opengpc.com" target="_blank" rel="noreferrer"><DappIcon name="link" size={18} />{text("进入游戏", "Enter Game")}</a>
           </article>

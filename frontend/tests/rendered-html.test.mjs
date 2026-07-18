@@ -37,7 +37,11 @@ test("server-renders the GPC mining application shell", async () => {
   assert.doesNotMatch(html, /今日可领取|今日预计/);
   assert.match(html, /aria-label="切换为英文">EN</);
   assert.match(html, /GPC首个链游—GPC传奇/);
-  assert.match(html, /1GPC=10元宝/);
+  assert.match(html, /1 GPC = 10/);
+  assert.match(html, /链上恒定充值规则/);
+  assert.match(html, /游戏资产自由流通/);
+  assert.match(html, /玩家充值全部销毁/);
+  assert.match(html, /通缩机制持续赋能/);
   assert.match(html, /进入游戏/);
   assert.match(html, /href="http:\/\/cq\.opengpc\.com"/);
   assert.doesNotMatch(html, /我的账户|查看 GPC 代币合约/);
