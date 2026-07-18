@@ -55,6 +55,9 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /大区/);
   assert.match(source, /小区/);
   assert.match(source, /placeOrder\.staticCall/);
+  assert.match(source, /ORDER_GAS_HEADROOM_BPS = 3_000n/);
+  assert.match(source, /placeOrder\.estimateGas/);
+  assert.match(source, /\{ gasLimit \}/);
   assert.match(source, /0xf85bf639/);
   assert.match(source, /根节点钱包不能参与质押，请切换其他钱包/);
   assert.match(source, /0x613f0ee7/);

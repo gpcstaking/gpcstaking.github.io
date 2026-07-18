@@ -61,6 +61,7 @@ const WBNB_SWAP_AMOUNT = 5n * 10n ** 16n;
 const BPS = 10_000n;
 const USER_SWAP_SLIPPAGE_BPS = 50n; // 0.5% from the pre-signing router quote
 const LP_SLIPPAGE_BPS = 200n;
+const ORDER_GAS_HEADROOM_BPS = 3_000n; // BSC estimation can underfund deep router subcalls
 
 type Snapshot = {
   power: bigint;
@@ -450,7 +451,9 @@ export default function Home() {
       const minLpWbnb = quotedWbnb * (BPS - LP_SLIPPAGE_BPS) / BPS;
       const deadline = Math.floor(Date.now() / 1000) + 300;
       await mining.placeOrder.staticCall(deadline, minGpcOut, minWbnbOut, minLpGpc, minLpWbnb);
-      return mining.placeOrder(deadline, minGpcOut, minWbnbOut, minLpGpc, minLpWbnb);
+      const estimatedGas = await mining.placeOrder.estimateGas(deadline, minGpcOut, minWbnbOut, minLpGpc, minLpWbnb);
+      const gasLimit = estimatedGas * (BPS + ORDER_GAS_HEADROOM_BPS) / BPS;
+      return mining.placeOrder(deadline, minGpcOut, minWbnbOut, minLpGpc, minLpWbnb, { gasLimit });
     });
   }
 
