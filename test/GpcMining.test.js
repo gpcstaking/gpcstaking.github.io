@@ -267,6 +267,46 @@ describe('GpcMiningCore', function () {
     expect((await mining.users(alice.address)).power).to.equal(0);
   });
 
+  it('registers order users and expires the due heap head without caller-supplied addresses', async function () {
+    const { operation, alice, bob, mining, bindAndOrder } = await loadFixture(deployFixture);
+
+    await bindAndOrder(alice, operation);
+    const aliceStartedAt = (await mining.users(alice.address)).inactivityStartedAt;
+    await time.increase(10 * 24 * 60 * 60);
+    await bindAndOrder(bob, operation);
+    const bobStartedAt = (await mining.users(bob.address)).inactivityStartedAt;
+
+    expect(await mining.expiryQueueSize()).to.equal(2);
+    expect(await mining.expiryQueueUser(0)).to.equal(alice.address);
+    expect(await mining.nextExpiryAt()).to.equal(aliceStartedAt + 180n * 24n * 60n * 60n);
+
+    await time.increase(170 * 24 * 60 * 60);
+    await expect(mining.expireDueUsers())
+      .to.emit(mining, 'PowerExpired')
+      .withArgs(alice.address, e('2'), anyValue)
+      .and.to.emit(mining, 'ExpiryBatchProcessed')
+      .withArgs(1, 1, bobStartedAt + 180n * 24n * 60n * 60n);
+
+    expect((await mining.users(alice.address)).power).to.equal(0);
+    expect((await mining.users(bob.address)).power).to.equal(e('2'));
+    expect(await mining.expiryQueueSize()).to.equal(1);
+    expect(await mining.expiryQueueUser(0)).to.equal(bob.address);
+  });
+
+  it('moves a successful withdrawal to its new inactivity expiry', async function () {
+    const { operation, alice, bob, oracle, mining, bindAndOrder } = await loadFixture(deployFixture);
+
+    await bindAndOrder(alice, operation);
+    await time.increase(24 * 60 * 60);
+    await bindAndOrder(bob, operation);
+    await oracle.setPrices(e('0.1'), e('500'));
+    await mining.connect(alice).withdraw();
+
+    const bobStartedAt = (await mining.users(bob.address)).inactivityStartedAt;
+    expect(await mining.expiryQueueUser(0)).to.equal(bob.address);
+    expect(await mining.nextExpiryAt()).to.equal(bobStartedAt + 180n * 24n * 60n * 60n);
+  });
+
   it('rejects unsafe swap output relative to the six-hour oracle', async function () {
     const { operation, alice, usdt, gpc, router, mining } = await loadFixture(deployFixture);
     await mining.connect(alice).bindReferral(operation.address);

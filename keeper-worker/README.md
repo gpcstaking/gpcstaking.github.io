@@ -1,6 +1,6 @@
-# GPC Oracle Keeper Worker
+# GPC Oracle and Mining Keeper Worker
 
-This Cloudflare Worker checks the rolling Oracle every minute and sends `update()` only when the five-minute observation is due. The keeper key is stored only as a Cloudflare secret.
+This Cloudflare Worker checks the rolling Oracle and the mining inactivity queue every minute. It sends `update()` only when the five-minute Oracle observation is due, and calls the mining contract's address-free `expireDueUsers()` only when the queue head has reached 180 days without a successful withdrawal. The keeper key is stored only as a Cloudflare secret.
 
 Required secrets:
 

@@ -47,6 +47,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     uint256 public constant MAX_DEADLINE_WINDOW = 5 minutes;
     uint256 public constant MAX_REFERRAL_DEPTH = 30;
     uint256 public constant MAX_EXPIRE_BATCH = 50;
+    uint256 public constant MAX_AUTO_EXPIRE_BATCH = 20;
 
     struct UserInfo {
         uint256 power;
@@ -99,8 +100,13 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     uint256 public withdrawWindowPoolBase;
     uint256 public withdrawnGpcInWindow;
 
+    // Min-heap ordered by the user's next 180-day inactivity expiry. New orders
+    // register automatically; withdrawals move the user to their new expiry.
+    address[] private _expiryHeap;
+    mapping(address => uint256) private _expiryHeapIndexPlusOne;
+
     // Reserved storage slots for future implementation upgrades.
-    uint256[37] private __gap;
+    uint256[35] private __gap;
 
     event ReferralBound(address indexed user, address indexed parent, uint256 depth);
     event OrderPlaced(
@@ -124,6 +130,8 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         uint256 gpcPrice
     );
     event PowerExpired(address indexed user, uint256 powerBurned, uint256 timestamp);
+    event ExpiryUserRegistered(address indexed user, uint256 expiresAt);
+    event ExpiryBatchProcessed(uint256 checked, uint256 expired, uint256 nextExpiryAt);
     event WbnbRemainderSentToOperation(uint256 amount);
 
     error ZeroAddress();
@@ -315,6 +323,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         if (user.inactivityStartedAt == 0) {
             user.inactivityStartedAt = uint64(block.timestamp);
         }
+        _upsertExpiryUser(msg.sender);
 
         emit OrderPlaced(
             msg.sender,
@@ -349,6 +358,13 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         user.nextWithdrawAt = uint64(block.timestamp + WITHDRAW_COOLDOWN);
         user.inactivityStartedAt = uint64(block.timestamp);
         _decreasePower(msg.sender, quote.totalRewardUsdt);
+        if (user.power == 0) {
+            user.nextWithdrawAt = 0;
+            user.inactivityStartedAt = 0;
+            _removeExpiryUser(msg.sender);
+        } else {
+            _upsertExpiryUser(msg.sender);
+        }
         miningPoolGpc -= quote.grossGpc;
 
         gpc.safeTransfer(msg.sender, netGpc);
@@ -371,6 +387,51 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         for (uint256 i; i < accounts.length; ++i) {
             _expireIfNeeded(accounts[i]);
         }
+    }
+
+    /**
+     * @notice One-time migration helper for users who ordered before the expiry queue upgrade.
+     * @dev New and returning users are registered automatically by placeOrder().
+     */
+    function registerExpiryUsers(address[] calldata accounts) external onlyOwner {
+        if (accounts.length > MAX_EXPIRE_BATCH) revert BatchTooLarge();
+        for (uint256 i; i < accounts.length; ++i) {
+            UserInfo storage user = users[accounts[i]];
+            if (user.power != 0 && user.inactivityStartedAt != 0) {
+                _upsertExpiryUser(accounts[i]);
+            }
+        }
+    }
+
+    /**
+     * @notice Burns due inactive power without requiring the caller to know any user address.
+     * @dev The min-heap makes this O(due users), capped to keep keeper gas bounded.
+     */
+    function expireDueUsers() external whenNotPaused returns (uint256 expired) {
+        uint256 checked;
+        while (checked < MAX_AUTO_EXPIRE_BATCH && _expiryHeap.length != 0) {
+            address account = _expiryHeap[0];
+            if (!_isExpired(account)) break;
+            _expireIfNeeded(account);
+            unchecked {
+                ++checked;
+                ++expired;
+            }
+        }
+        emit ExpiryBatchProcessed(checked, expired, nextExpiryAt());
+    }
+
+    function nextExpiryAt() public view returns (uint256) {
+        if (_expiryHeap.length == 0) return 0;
+        return uint256(users[_expiryHeap[0]].inactivityStartedAt) + INACTIVITY_PERIOD;
+    }
+
+    function expiryQueueSize() external view returns (uint256) {
+        return _expiryHeap.length;
+    }
+
+    function expiryQueueUser(uint256 index) external view returns (address) {
+        return _expiryHeap[index];
     }
 
     function quoteRewards(address account) external view returns (RewardQuote memory) {
@@ -636,9 +697,95 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         _decreasePower(account, expiredPower);
         user.nextWithdrawAt = 0;
         user.inactivityStartedAt = 0;
+        _removeExpiryUser(account);
 
         emit PowerExpired(account, expiredPower, block.timestamp);
         return true;
+    }
+
+    function _upsertExpiryUser(address account) internal {
+        uint256 indexPlusOne = _expiryHeapIndexPlusOne[account];
+        if (indexPlusOne == 0) {
+            _expiryHeap.push(account);
+            uint256 index = _expiryHeap.length - 1;
+            _expiryHeapIndexPlusOne[account] = index + 1;
+            _siftExpiryUp(index);
+            emit ExpiryUserRegistered(
+                account,
+                uint256(users[account].inactivityStartedAt) + INACTIVITY_PERIOD
+            );
+            return;
+        }
+        _rebalanceExpiry(indexPlusOne - 1);
+    }
+
+    function _removeExpiryUser(address account) internal {
+        uint256 indexPlusOne = _expiryHeapIndexPlusOne[account];
+        if (indexPlusOne == 0) return;
+
+        uint256 index = indexPlusOne - 1;
+        uint256 lastIndex = _expiryHeap.length - 1;
+        if (index != lastIndex) {
+            address moved = _expiryHeap[lastIndex];
+            _expiryHeap[index] = moved;
+            _expiryHeapIndexPlusOne[moved] = index + 1;
+        }
+        _expiryHeap.pop();
+        delete _expiryHeapIndexPlusOne[account];
+
+        if (index < _expiryHeap.length) _rebalanceExpiry(index);
+    }
+
+    function _rebalanceExpiry(uint256 index) internal {
+        if (index != 0) {
+            uint256 parentIndex = (index - 1) / 2;
+            if (_expiryHigherPriority(_expiryHeap[index], _expiryHeap[parentIndex])) {
+                _siftExpiryUp(index);
+                return;
+            }
+        }
+        _siftExpiryDown(index);
+    }
+
+    function _siftExpiryUp(uint256 index) internal {
+        while (index != 0) {
+            uint256 parentIndex = (index - 1) / 2;
+            if (!_expiryHigherPriority(_expiryHeap[index], _expiryHeap[parentIndex])) break;
+            _swapExpiryEntries(index, parentIndex);
+            index = parentIndex;
+        }
+    }
+
+    function _siftExpiryDown(uint256 index) internal {
+        while (true) {
+            uint256 left = index * 2 + 1;
+            if (left >= _expiryHeap.length) break;
+            uint256 right = left + 1;
+            uint256 best = left;
+            if (
+                right < _expiryHeap.length &&
+                _expiryHigherPriority(_expiryHeap[right], _expiryHeap[left])
+            ) best = right;
+            if (!_expiryHigherPriority(_expiryHeap[best], _expiryHeap[index])) break;
+            _swapExpiryEntries(index, best);
+            index = best;
+        }
+    }
+
+    function _swapExpiryEntries(uint256 a, uint256 b) internal {
+        address accountA = _expiryHeap[a];
+        address accountB = _expiryHeap[b];
+        _expiryHeap[a] = accountB;
+        _expiryHeap[b] = accountA;
+        _expiryHeapIndexPlusOne[accountA] = b + 1;
+        _expiryHeapIndexPlusOne[accountB] = a + 1;
+    }
+
+    function _expiryHigherPriority(address a, address b) internal view returns (bool) {
+        uint64 aStartedAt = users[a].inactivityStartedAt;
+        uint64 bStartedAt = users[b].inactivityStartedAt;
+        if (aStartedAt != bStartedAt) return aStartedAt < bStartedAt;
+        return uint160(a) < uint160(b);
     }
 
     function _setBranchPower(address leader, address branch, uint256 newPower) internal {
