@@ -25,6 +25,7 @@ const MINING_ABI = [
   "function directReferrals(address) view returns (address[])",
   "function branchPower(address,address) view returns (uint256)",
   "function largestBranch(address) view returns (address branch,uint256 power)",
+  "function teamNodeCount(address) view returns (uint256)",
   "function quoteRewards(address) view returns ((uint256 staticRewardUsdt,uint256 communityRewardUsdt,uint256 totalRewardUsdt,uint256 grossGpc,uint256 gpcPrice,uint256 poolValueUsdt,uint256 smallAreaPower,uint256 effectiveSmallAreaPower,bool poolLimitedMode))",
   "function oracle() view returns (address)",
   "function bindReferral(address parent)",
@@ -82,6 +83,7 @@ type Snapshot = {
   poolLimitedMode: boolean;
   oracleReady: boolean;
   largestBranch: string;
+  teamNodeCount: bigint;
   directReferrals: Array<{ address: string; branchPower: bigint }>;
 };
 
@@ -108,6 +110,7 @@ const emptySnapshot: Snapshot = {
   poolLimitedMode: false,
   oracleReady: false,
   largestBranch: ZERO_ADDRESS,
+  teamNodeCount: 0n,
   directReferrals: [],
 };
 
@@ -128,6 +131,10 @@ function compact(value: bigint, language: Language, maximumFractionDigits = 2) {
 
 function gasLimitWithHeadroom(estimatedGas: bigint) {
   return estimatedGas * (BPS + TRANSACTION_GAS_HEADROOM_BPS) / BPS;
+}
+
+function formatCount(value: bigint, language: Language) {
+  return new Intl.NumberFormat(language === "zh" ? "zh-CN" : "en-US").format(value);
 }
 
 function shortAddress(address: string) {
@@ -274,7 +281,7 @@ export default function Home() {
 
     const mining = new Contract(MINING_ADDRESS, MINING_ABI, activeProvider);
     const usdt = new Contract(USDT_ADDRESS, ERC20_ABI, activeProvider);
-    const [user, parent, totalPower, poolGpc, community, directReferralAddresses, largestBranch, usdtBalance, allowance, oracleAddress] = await Promise.all([
+    const [user, parent, totalPower, poolGpc, community, directReferralAddresses, largestBranch, teamNodeCount, usdtBalance, allowance, oracleAddress] = await Promise.all([
       mining.users(activeAccount),
       mining.parentOf(activeAccount),
       mining.totalPower(),
@@ -282,6 +289,7 @@ export default function Home() {
       mining.communityPower(activeAccount),
       mining.directReferrals(activeAccount),
       mining.largestBranch(activeAccount),
+      mining.teamNodeCount(activeAccount),
       usdt.balanceOf(activeAccount),
       usdt.allowance(activeAccount, MINING_ADDRESS),
       mining.oracle(),
@@ -321,6 +329,7 @@ export default function Home() {
       poolLimitedMode: reward?.poolLimitedMode ?? false,
       oracleReady,
       largestBranch: largestBranch.branch,
+      teamNodeCount,
       directReferrals,
     });
     setCurrentTime(Math.floor(Date.now() / 1000));
@@ -568,6 +577,7 @@ export default function Home() {
             <span>{text("今日社区收益", "Community reward today")}</span><strong>{compact(snapshot.communityReward, language, 4)} <small>USDT</small></strong><p>{communityRewardBurned ? text("有效算力低于小区总算力，本次社区收益全部烧伤", "Effective power is below total small-area power; the community reward is fully burned") : text("有效算力覆盖小区总算力，获得小区日收益的 5%", "Effective power covers the total small area; earn 5% of its daily rewards")}</p>
           </article>
           <article className="community-card">
+            <div className="community-node-stats"><div><span>{text("直属节点数", "Direct nodes")}</span><strong>{formatCount(BigInt(snapshot.directReferrals.length), language)}</strong></div><div><span>{text("团队节点总数", "Total team nodes")}</span><strong>{formatCount(snapshot.teamNodeCount, language)}</strong></div></div>
             <div className="community-stats"><div><span>{text("小区总算力", "Total small-area power")}</span><strong>{compact(snapshot.smallArea, language)}</strong></div><div><span>{text("小区有效算力", "Effective small-area power")}</span><strong>{compact(snapshot.effectiveSmallArea, language)}</strong></div><div><span>{text("奖励状态", "Reward status")}</span><strong className={communityRewardBurned ? "burned" : "active"}>{snapshot.smallArea === 0n ? text("暂无", "None") : communityRewardBurned ? text("全部烧伤", "Burned") : text("已激活", "Active")}</strong></div></div>
             {isBound ? (
               <a className="parent-row" href={`https://bscscan.com/address/${snapshot.parent}`} target="_blank" rel="noreferrer"><span>{text("我的上级", "My sponsor")}</span><strong>{shortAddress(snapshot.parent)}</strong><DappIcon name="chevron" size={16} /></a>

@@ -51,6 +51,9 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /directReferrals\(address\)/);
   assert.match(source, /branchPower\(address,address\)/);
   assert.match(source, /largestBranch\(address\)/);
+  assert.match(source, /teamNodeCount\(address\)/);
+  assert.match(source, /直属节点数/);
+  assert.match(source, /团队节点总数/);
   assert.match(source, /伞下算力/);
   assert.match(source, /大区/);
   assert.match(source, /小区/);

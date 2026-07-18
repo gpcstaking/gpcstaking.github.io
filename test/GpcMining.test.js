@@ -355,6 +355,26 @@ describe('GpcMiningCore', function () {
       .to.be.revertedWithCustomError(mining, 'ReferralDepthExceeded');
   });
 
+  it('tracks direct and total descendant node counts through 30 referral levels', async function () {
+    const { operation, alice, bob, carol, mining } = await loadFixture(deployFixture);
+
+    await mining.connect(alice).bindReferral(operation.address);
+    await mining.connect(bob).bindReferral(alice.address);
+    await mining.connect(carol).bindReferral(bob.address);
+
+    expect((await mining.directReferrals(operation.address)).length).to.equal(1);
+    expect((await mining.directReferrals(alice.address)).length).to.equal(1);
+    expect(await mining.teamNodeCount(operation.address)).to.equal(3);
+    expect(await mining.teamNodeCount(alice.address)).to.equal(2);
+    expect(await mining.teamNodeCount(bob.address)).to.equal(1);
+    expect(await mining.teamNodeCount(carol.address)).to.equal(0);
+
+    // Migration calls are idempotent for nodes already counted at bind time.
+    await mining.registerTeamNodeCounts([alice.address, bob.address, carol.address]);
+    expect(await mining.teamNodeCount(operation.address)).to.equal(3);
+    expect(await mining.teamNodeCount(alice.address)).to.equal(2);
+  });
+
   it('updates the largest branch when a branch is removed by inactivity expiry', async function () {
     const { operation, alice, bob, carol, mining, bindAndOrder } = await loadFixture(deployFixture);
     await bindAndOrder(alice, operation);

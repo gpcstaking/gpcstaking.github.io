@@ -105,8 +105,12 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     address[] private _expiryHeap;
     mapping(address => uint256) private _expiryHeapIndexPlusOne;
 
+    // Bound referral nodes are permanent and counted independently of power.
+    mapping(address => uint256) public teamNodeCount;
+    mapping(address => bool) private _teamNodeAccounted;
+
     // Reserved storage slots for future implementation upgrades.
-    uint256[35] private __gap;
+    uint256[33] private __gap;
 
     event ReferralBound(address indexed user, address indexed parent, uint256 depth);
     event OrderPlaced(
@@ -132,6 +136,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     event PowerExpired(address indexed user, uint256 powerBurned, uint256 timestamp);
     event ExpiryUserRegistered(address indexed user, uint256 expiresAt);
     event ExpiryBatchProcessed(uint256 checked, uint256 expired, uint256 nextExpiryAt);
+    event TeamNodeAccounted(address indexed user, address indexed parent);
     event WbnbRemainderSentToOperation(uint256 amount);
 
     error ZeroAddress();
@@ -214,8 +219,19 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         parentOf[msg.sender] = parent;
         referralDepth[msg.sender] = uint8(depth);
         _directReferrals[parent].push(msg.sender);
+        _accountTeamNode(msg.sender);
 
         emit ReferralBound(msg.sender, parent, depth);
+    }
+
+    /**
+     * @notice Idempotently backfills nodes bound before team-node counting was deployed.
+     */
+    function registerTeamNodeCounts(address[] calldata accounts) external onlyOwner {
+        if (accounts.length > MAX_EXPIRE_BATCH) revert BatchTooLarge();
+        for (uint256 i; i < accounts.length; ++i) {
+            _accountTeamNode(accounts[i]);
+        }
     }
 
     /**
@@ -687,6 +703,22 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
             branch = ancestor;
             ancestor = parentOf[ancestor];
         }
+    }
+
+    function _accountTeamNode(address account) internal {
+        if (_teamNodeAccounted[account]) return;
+
+        address ancestor = parentOf[account];
+        if (ancestor == address(0) || ancestor == address(this)) return;
+        _teamNodeAccounted[account] = true;
+
+        for (uint256 level; level < MAX_REFERRAL_DEPTH; ++level) {
+            if (ancestor == address(0) || ancestor == address(this)) break;
+            teamNodeCount[ancestor] += 1;
+            ancestor = parentOf[ancestor];
+        }
+
+        emit TeamNodeAccounted(account, parentOf[account]);
     }
 
     function _isExpired(address account) internal view returns (bool) {

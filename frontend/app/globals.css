@@ -129,6 +129,11 @@ a { color: inherit; text-decoration: none; }
 .community-hero > strong { display: block; margin-top: 9px; font-size: 30px; letter-spacing: -.04em; }
 .community-hero strong small { color: var(--purple); font-size: 12px; letter-spacing: 0; }
 .community-hero p { margin: 8px 0 0; color: #716d7c; font-size: 11px; }
+.community-node-stats { display: grid; grid-template-columns: 1fr 1fr; margin: -2px 0 14px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.community-node-stats div { padding-inline: 14px; }
+.community-node-stats div:first-child { padding-left: 0; border-right: 1px solid var(--line); }
+.community-node-stats span { display: block; color: var(--muted); font-size: 11px; }
+.community-node-stats strong { display: block; margin-top: 6px; color: var(--lime); font-size: 20px; }
 .community-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
 .community-stats div { padding-inline: 12px; border-right: 1px solid var(--line); }
 .community-stats div:first-child { padding-left: 0; }
