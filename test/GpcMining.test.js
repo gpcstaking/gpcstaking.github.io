@@ -206,6 +206,13 @@ describe('GpcMiningCore', function () {
     expect(await gpc.balanceOf(alice.address)).to.equal(e('0.04725'));
     expect(await gpc.balanceOf(operation.address)).to.equal(e('0.00525'));
     expect((await mining.users(alice.address)).power).to.equal(e('1.99475'));
+    expect(await mining.communityClaimedToday(alice.address)).to.equal(e('0.00025'));
+    const storedCommunityEarnings = await mining.dailyCommunityEarnings(alice.address);
+    expect(storedCommunityEarnings.rewardUsdt).to.equal(e('0.00025'));
+    expect(storedCommunityEarnings.day).to.be.greaterThan(0);
+
+    await time.increase(24 * 60 * 60);
+    expect(await mining.communityClaimedToday(alice.address)).to.equal(0);
   });
 
   it('burns the entire community reward when effective small-area power is below the small area', async function () {

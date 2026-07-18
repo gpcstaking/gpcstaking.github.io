@@ -31,6 +31,7 @@ const MINING_ABI = [
   "function branchPower(address,address) view returns (uint256)",
   "function largestBranch(address) view returns (address branch,uint256 power)",
   "function teamNodeCount(address) view returns (uint256)",
+  "function communityClaimedToday(address) view returns (uint256)",
   "function quoteRewards(address) view returns ((uint256 staticRewardUsdt,uint256 communityRewardUsdt,uint256 totalRewardUsdt,uint256 grossGpc,uint256 gpcPrice,uint256 poolValueUsdt,uint256 smallAreaPower,uint256 effectiveSmallAreaPower,bool poolLimitedMode))",
   "function oracle() view returns (address)",
   "function bindReferral(address parent)",
@@ -91,6 +92,7 @@ type Snapshot = {
   allowance: bigint;
   staticReward: bigint;
   communityReward: bigint;
+  communityClaimedToday: bigint;
   totalReward: bigint;
   grossGpc: bigint;
   claimedTodayGpc: bigint;
@@ -136,6 +138,7 @@ const emptySnapshot: Snapshot = {
   allowance: 0n,
   staticReward: 0n,
   communityReward: 0n,
+  communityClaimedToday: 0n,
   totalReward: 0n,
   grossGpc: 0n,
   claimedTodayGpc: 0n,
@@ -473,7 +476,7 @@ export default function Home() {
     const usdt = new Contract(USDT_ADDRESS, ERC20_ABI, activeProvider);
     const gpc = new Contract(GPC_ADDRESS, ERC20_ABI, activeProvider);
     const todayClaimsPromise = loadTodayClaims(activeAccount).catch(() => ({ gpc: 0n, usdt: 0n, staticGpc: 0n, dynamicGpc: 0n }));
-    const [user, parent, totalPower, poolGpc, community, directReferralAddresses, largestBranch, teamNodeCount, usdtBalance, allowance, oracleAddress, burnedGpc] = await Promise.all([
+    const [user, parent, totalPower, poolGpc, community, directReferralAddresses, largestBranch, teamNodeCount, communityClaimedToday, usdtBalance, allowance, oracleAddress, burnedGpc] = await Promise.all([
       mining.users(activeAccount),
       mining.parentOf(activeAccount),
       mining.totalPower(),
@@ -482,6 +485,7 @@ export default function Home() {
       mining.directReferrals(activeAccount),
       mining.largestBranch(activeAccount),
       mining.teamNodeCount(activeAccount),
+      mining.communityClaimedToday(activeAccount),
       usdt.balanceOf(activeAccount),
       usdt.allowance(activeAccount, MINING_ADDRESS),
       mining.oracle(),
@@ -516,6 +520,7 @@ export default function Home() {
       allowance,
       staticReward: reward?.staticRewardUsdt ?? 0n,
       communityReward: reward?.communityRewardUsdt ?? 0n,
+      communityClaimedToday,
       totalReward: reward?.totalRewardUsdt ?? 0n,
       grossGpc: reward?.grossGpc ?? 0n,
       claimedTodayGpc: 0n,
@@ -817,7 +822,7 @@ export default function Home() {
         <div className="tab-page" hidden={activeTab !== "team"}>
           <div className="page-heading"><span>COMMUNITY</span><h1>{text("我的团队", "My Team")}</h1><p>{text("统计 30 层推荐关系，自动计算小区有效算力与社区奖励。", "Tracks 30 referral levels and calculates effective small-area power and community rewards.")}</p></div>
           <article className="community-hero">
-            <span>{text("今日社区已收益", "Community earned today")}</span><strong>{compact(snapshot.communityReward, language, 4)} <small>USDT</small></strong><p>{communityRewardBurned ? text("有效算力低于小区总算力，本次社区收益全部烧伤", "Effective power is below total small-area power; the community reward is fully burned") : text("有效算力覆盖小区总算力，获得小区日收益的 5%", "Effective power covers the total small area; earn 5% of its daily rewards")}</p>
+            <span>{text("今日社区已收益", "Community earned today")}</span><strong>{compact(snapshot.communityClaimedToday, language, 4)} <small>USDT</small></strong><p>{snapshot.communityClaimedToday > 0n ? text("今日提现已结算的社区收益", "Community earnings settled in today's claim") : text("今日尚未领取社区收益", "No community earnings claimed today")}</p>
           </article>
           <article className="community-card">
             <div className="community-node-stats"><div><span>{text("直属节点数", "Direct nodes")}</span><strong>{formatCount(BigInt(snapshot.directReferrals.length), language)}</strong></div><div><span>{text("团队节点总数", "Total team nodes")}</span><strong>{formatCount(snapshot.teamNodeCount, language)}</strong></div></div>

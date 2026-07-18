@@ -70,6 +70,11 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         bool poolLimitedMode;
     }
 
+    struct DailyCommunityEarnings {
+        uint192 rewardUsdt;
+        uint64 day;
+    }
+
     IERC20 public usdt;
     IERC20 public gpc;
     IERC20 public wbnb;
@@ -109,8 +114,12 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     mapping(address => uint256) public teamNodeCount;
     mapping(address => bool) private _teamNodeAccounted;
 
+    // One packed slot per user. Day boundaries use UTC+8 to match the DApp's
+    // displayed "today" and the project's primary operating timezone.
+    mapping(address => DailyCommunityEarnings) public dailyCommunityEarnings;
+
     // Reserved storage slots for future implementation upgrades.
-    uint256[33] private __gap;
+    uint256[32] private __gap;
 
     event ReferralBound(address indexed user, address indexed parent, uint256 depth);
     event OrderPlaced(
@@ -161,6 +170,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     error GlobalWithdrawLimitExceeded();
     error BatchTooLarge();
     error ProtectedToken();
+    error CommunityRewardOverflow();
 
     function __GpcMiningCore_init(
         address usdt_,
@@ -376,6 +386,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
 
         uint256 feeGpc = Math.mulDiv(quote.grossGpc, WITHDRAW_FEE_BPS, BPS);
         uint256 netGpc = quote.grossGpc - feeGpc;
+        _recordCommunityEarnings(msg.sender, quote.communityRewardUsdt);
 
         user.nextWithdrawAt = uint64(block.timestamp + WITHDRAW_COOLDOWN);
         user.inactivityStartedAt = uint64(block.timestamp);
@@ -402,6 +413,11 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
             netGpc,
             quote.gpcPrice
         );
+    }
+
+    function communityClaimedToday(address account) external view returns (uint256) {
+        DailyCommunityEarnings memory earnings = dailyCommunityEarnings[account];
+        return earnings.day == _currentDay() ? uint256(earnings.rewardUsdt) : 0;
     }
 
     function expireUsers(address[] calldata accounts) external whenNotPaused {
@@ -668,6 +684,24 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
             quote.communityRewardUsdt = quote.totalRewardUsdt - quote.staticRewardUsdt;
         }
         quote.grossGpc = Math.mulDiv(quote.totalRewardUsdt, 1 ether, quote.gpcPrice);
+    }
+
+    function _recordCommunityEarnings(address account, uint256 rewardUsdt) internal {
+        if (rewardUsdt == 0) return;
+
+        uint64 currentDay = _currentDay();
+        DailyCommunityEarnings storage earnings = dailyCommunityEarnings[account];
+        uint256 updatedReward = earnings.day == currentDay
+            ? uint256(earnings.rewardUsdt) + rewardUsdt
+            : rewardUsdt;
+        if (updatedReward > type(uint192).max) revert CommunityRewardOverflow();
+
+        earnings.rewardUsdt = uint192(updatedReward);
+        earnings.day = currentDay;
+    }
+
+    function _currentDay() internal view returns (uint64) {
+        return uint64((block.timestamp + 8 hours) / 1 days);
     }
 
     function _increasePower(address account, uint256 amount) internal {
