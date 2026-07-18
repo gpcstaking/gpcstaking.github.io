@@ -23,6 +23,8 @@ const MINING_ABI = [
   "function miningPoolGpc() view returns (uint256)",
   "function communityPower(address) view returns (uint256 total,uint256 largestBranchPower,uint256 smallArea,uint256 effectiveSmallArea)",
   "function directReferrals(address) view returns (address[])",
+  "function branchPower(address,address) view returns (uint256)",
+  "function largestBranch(address) view returns (address branch,uint256 power)",
   "function quoteRewards(address) view returns ((uint256 staticRewardUsdt,uint256 communityRewardUsdt,uint256 totalRewardUsdt,uint256 grossGpc,uint256 gpcPrice,uint256 poolValueUsdt,uint256 smallAreaPower,uint256 effectiveSmallAreaPower,bool poolLimitedMode))",
   "function oracle() view returns (address)",
   "function bindReferral(address parent)",
@@ -78,7 +80,8 @@ type Snapshot = {
   effectiveSmallArea: bigint;
   poolLimitedMode: boolean;
   oracleReady: boolean;
-  directReferrals: string[];
+  largestBranch: string;
+  directReferrals: Array<{ address: string; branchPower: bigint }>;
 };
 
 type AppTab = "home" | "order" | "team" | "profile";
@@ -103,6 +106,7 @@ const emptySnapshot: Snapshot = {
   effectiveSmallArea: 0n,
   poolLimitedMode: false,
   oracleReady: false,
+  largestBranch: ZERO_ADDRESS,
   directReferrals: [],
 };
 
@@ -253,17 +257,24 @@ export default function Home() {
 
     const mining = new Contract(MINING_ADDRESS, MINING_ABI, activeProvider);
     const usdt = new Contract(USDT_ADDRESS, ERC20_ABI, activeProvider);
-    const [user, parent, totalPower, poolGpc, community, directReferrals, usdtBalance, allowance, oracleAddress] = await Promise.all([
+    const [user, parent, totalPower, poolGpc, community, directReferralAddresses, largestBranch, usdtBalance, allowance, oracleAddress] = await Promise.all([
       mining.users(activeAccount),
       mining.parentOf(activeAccount),
       mining.totalPower(),
       mining.miningPoolGpc(),
       mining.communityPower(activeAccount),
       mining.directReferrals(activeAccount),
+      mining.largestBranch(activeAccount),
       usdt.balanceOf(activeAccount),
       usdt.allowance(activeAccount, MINING_ADDRESS),
       mining.oracle(),
     ]);
+    const directReferrals = await Promise.all(
+      Array.from(directReferralAddresses as string[]).map(async (address) => ({
+        address,
+        branchPower: await mining.branchPower(activeAccount, address),
+      })),
+    );
     const oracle = new Contract(oracleAddress, ORACLE_ABI, activeProvider);
     const oracleReady = await oracle.isReady();
 
@@ -292,7 +303,8 @@ export default function Home() {
       effectiveSmallArea: community.effectiveSmallArea,
       poolLimitedMode: reward?.poolLimitedMode ?? false,
       oracleReady,
-      directReferrals: Array.from(directReferrals),
+      largestBranch: largestBranch.branch,
+      directReferrals,
     });
     setCurrentTime(Math.floor(Date.now() / 1000));
     setStatus(oracleReady
@@ -549,11 +561,17 @@ export default function Home() {
             </div>
             {snapshot.directReferrals.length > 0 ? (
               <div className="direct-referral-list">
-                {snapshot.directReferrals.map((referral, index) => (
-                  <a className="direct-referral-row" href={`https://bscscan.com/address/${referral}`} target="_blank" rel="noreferrer" key={referral}>
-                    <span>{String(index + 1).padStart(2, "0")}</span><strong>{shortAddress(referral)}</strong><DappIcon name="chevron" size={16} />
+                {snapshot.directReferrals.map((referral, index) => {
+                  const isLargestBranch = referral.branchPower > 0n && referral.address.toLowerCase() === snapshot.largestBranch.toLowerCase();
+                  return (
+                  <a className="direct-referral-row" href={`https://bscscan.com/address/${referral.address}`} target="_blank" rel="noreferrer" key={referral.address}>
+                    <span>{String(index + 1).padStart(2, "0")}</span>
+                    <div className="direct-referral-info"><strong>{shortAddress(referral.address)}</strong><small className={isLargestBranch ? "major" : "minor"}>{isLargestBranch ? text("大区", "Major area") : text("小区", "Small area")}</small></div>
+                    <div className="direct-referral-power"><span>{text("伞下算力", "Branch power")}</span><strong>{compact(referral.branchPower, language)}</strong></div>
+                    <DappIcon name="chevron" size={16} />
                   </a>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="direct-empty">{account ? text("暂无直推下级，刷新后可查看最新链上关系", "No direct referrals yet. Refresh to load the latest on-chain relationships.") : text("连接钱包后查看直推下级", "Connect your wallet to view direct referrals")}</div>

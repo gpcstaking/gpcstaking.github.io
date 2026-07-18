@@ -49,6 +49,11 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /approve\(MINING_ADDRESS, ORDER_AMOUNT\)/);
   assert.match(source, /授权 1 USDT/);
   assert.match(source, /directReferrals\(address\)/);
+  assert.match(source, /branchPower\(address,address\)/);
+  assert.match(source, /largestBranch\(address\)/);
+  assert.match(source, /伞下算力/);
+  assert.match(source, /大区/);
+  assert.match(source, /小区/);
   assert.match(source, /placeOrder\.staticCall/);
   assert.doesNotMatch(source, /授权 1,000 USDT/);
 

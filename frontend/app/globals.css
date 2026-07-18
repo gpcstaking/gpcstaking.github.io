@@ -150,10 +150,17 @@ a { color: inherit; text-decoration: none; }
 .direct-list-heading strong { font-size: 15px; }
 .direct-list-heading > span { min-width: 27px; padding: 5px 8px; border-radius: 999px; background: rgba(201,255,82,.08); color: var(--lime); font-size: 11px; text-align: center; }
 .direct-referral-list { border-top: 1px solid var(--line); }
-.direct-referral-row { min-height: 48px; display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
+.direct-referral-row { min-height: 58px; display: grid; grid-template-columns: 28px minmax(0,1fr) auto auto; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
 .direct-referral-row:last-child { border-bottom: 0; }
 .direct-referral-row > span { color: #5e6963; font-family: var(--font-geist-mono), monospace; font-size: 10px; }
-.direct-referral-row strong { color: #c9d1cd; font-family: var(--font-geist-mono), monospace; font-size: 13px; font-weight: 600; }
+.direct-referral-info { min-width: 0; display: flex; align-items: center; gap: 7px; }
+.direct-referral-info strong { overflow: hidden; color: #c9d1cd; font-family: var(--font-geist-mono), monospace; font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.direct-referral-info small { flex: 0 0 auto; padding: 2px 5px; border-radius: 5px; font-size: 9px; }
+.direct-referral-info small.major { background: rgba(255,184,92,.09); color: var(--orange); }
+.direct-referral-info small.minor { background: rgba(201,255,82,.08); color: var(--lime); }
+.direct-referral-power { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.direct-referral-power span { color: var(--muted); font-size: 9px; white-space: nowrap; }
+.direct-referral-power strong { color: #dce4df; font-family: var(--font-geist-mono), monospace; font-size: 13px; font-weight: 600; }
 .direct-referral-row svg { color: var(--muted); }
 .direct-empty { padding: 14px 4px 2px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.6; text-align: center; }
 
