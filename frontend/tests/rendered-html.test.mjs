@@ -55,6 +55,10 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /大区/);
   assert.match(source, /小区/);
   assert.match(source, /placeOrder\.staticCall/);
+  assert.match(source, /0xf85bf639/);
+  assert.match(source, /根节点钱包不能参与质押，请切换其他钱包/);
+  assert.match(source, /0x613f0ee7/);
+  assert.match(source, /0x73c5a6b0/);
   assert.doesNotMatch(source, /授权 1,000 USDT/);
 
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");

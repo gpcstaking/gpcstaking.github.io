@@ -156,16 +156,28 @@ function errorDetails(error: unknown) {
 function friendlyTransactionError(error: unknown, language: Language) {
   const details = errorDetails(error);
   const localized = (zh: string, en: string) => language === "zh" ? zh : en;
+  const contractError = (name: string, selector: string) => details.toLowerCase().includes(name.toLowerCase()) || details.toLowerCase().includes(selector);
 
   if (/ACTION_REJECTED|user rejected|User denied/i.test(details)) return localized("已取消钱包确认", "Wallet confirmation cancelled");
   if (/insufficient funds/i.test(details)) return localized("钱包 BNB 不足，无法支付 Gas", "Not enough BNB to pay gas");
-  if (/SpotTwapDeviationTooHigh/i.test(details)) return localized("当前价格偏离 6 小时均价超过安全范围，本次质押未扣款，请稍后重试", "The live price is outside the safe 6-hour range. No funds were taken; try again later.");
-  if (/PriceStale|PriceUnavailable|OraclePriceInvalid/i.test(details)) return localized("价格服务正在更新，本次质押未扣款，请稍后刷新", "Price service is updating. No funds were taken; refresh shortly.");
-  if (/OrderCooldownActive/i.test(details)) return localized("两次质押需要间隔 1 分钟", "Wait 1 minute between stakes");
-  if (/ReferralRequired/i.test(details)) return localized("请先绑定有效上级", "Bind a valid sponsor first");
-  if (/RootCannotOrder/i.test(details)) return localized("根节点钱包不能参与质押", "The root wallet cannot stake");
+  if (contractError("ZeroAddress", "0xd92e233d")) return localized("钱包地址无效", "Invalid wallet address");
+  if (contractError("AlreadyBound", "0x682a9065")) return localized("该钱包已经绑定过上级", "This wallet already has a sponsor");
+  if (contractError("ParentNotBound", "0xe22eca65")) return localized("无效地址：该钱包不在 GPC 推荐网络中", "Invalid address: this wallet is not in the GPC referral network");
+  if (contractError("ReferralDepthExceeded", "0xf9b08cf3")) return localized("推荐关系已达到 30 层上限", "The referral tree has reached its 30-level limit");
+  if (contractError("RootCannotOrder", "0xf85bf639")) return localized("根节点钱包不能参与质押，请切换其他钱包", "The root wallet cannot stake. Switch to another wallet.");
+  if (contractError("ReferralRequired", "0x23cf161d")) return localized("请先绑定有效上级", "Bind a valid sponsor first");
+  if (contractError("OrderCooldownActive", "0xc2a5d56a")) return localized("两次质押需要间隔 1 分钟", "Wait 1 minute between stakes");
+  if (contractError("InvalidDeadline", "0x769d11e4")) return localized("交易报价已过期，请重新质押", "The transaction quote expired. Try staking again.");
+  if (contractError("SpotTwapDeviationTooHigh", "0x613f0ee7")) return localized("当前价格偏离 6 小时均价超过安全范围，本次质押未扣款，请稍后重试", "The live price is outside the safe 6-hour range. No funds were taken; try again later.");
+  if (contractError("PriceStale", "0x28771d91") || contractError("PriceUnavailable", "0xcb08be81") || contractError("OraclePriceInvalid", "0xe5ea8c65")) return localized("价格服务正在更新，本次质押未扣款，请稍后刷新", "Price service is updating. No funds were taken; refresh shortly.");
+  if (contractError("UnsupportedUsdtTransfer", "0xf6e15c81")) return localized("当前 USDT 转账方式不受支持，本次质押未扣款", "This USDT transfer method is unsupported. No funds were taken.");
+  if (contractError("SwapOutputTooLow", "0x1eed8018") || /INSUFFICIENT_OUTPUT|slippage/i.test(details)) return localized("价格波动过大，本次质押未扣款，请刷新后重试", "Price moved too much. No funds were taken; refresh and retry.");
+  if (contractError("NoPower", "0xab68ecfc")) return localized("当前没有可提现算力", "There is no mining power available to claim");
+  if (contractError("WithdrawCooldownActive", "0x2c7d4316")) return localized("距离上次提现不足 24 小时", "Claims are limited to once every 24 hours");
+  if (contractError("NoReward", "0x6e992686")) return localized("当前没有可领取收益", "There is currently no reward to claim");
+  if (contractError("WithdrawExceedsPoolLimit", "0xe9260c57")) return localized("本次提现超过订单矿池 1% 限额", "This claim exceeds the 1% mining-pool limit");
+  if (contractError("GlobalWithdrawLimitExceeded", "0x73c5a6b0")) return localized("当前 24 小时全网提现额度已用完，请稍后再试", "The global 24-hour claim limit has been reached. Try again later.");
   if (/TRANSFER_FROM_FAILED|transfer amount exceeds balance|SafeERC20|insufficient allowance/i.test(details)) return localized("USDT 余额或授权不足，本次质押未扣款", "Insufficient USDT balance or allowance. No funds were taken.");
-  if (/INSUFFICIENT_OUTPUT|SwapOutputTooLow|slippage/i.test(details)) return localized("价格波动过大，本次质押未扣款，请刷新后重试", "Price moved too much. No funds were taken; refresh and retry.");
   return details || localized("交易失败，请稍后重试", "Transaction failed. Try again shortly.");
 }
 
