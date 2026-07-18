@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BrowserProvider,
   Contract,
@@ -91,6 +91,10 @@ type Snapshot = {
   communityReward: bigint;
   totalReward: bigint;
   grossGpc: bigint;
+  claimedTodayGpc: bigint;
+  claimedTodayUsdt: bigint;
+  claimedTodayStaticGpc: bigint;
+  claimedTodayDynamicGpc: bigint;
   smallArea: bigint;
   effectiveSmallArea: bigint;
   poolLimitedMode: boolean;
@@ -131,6 +135,10 @@ const emptySnapshot: Snapshot = {
   communityReward: 0n,
   totalReward: 0n,
   grossGpc: 0n,
+  claimedTodayGpc: 0n,
+  claimedTodayUsdt: 0n,
+  claimedTodayStaticGpc: 0n,
+  claimedTodayDynamicGpc: 0n,
   smallArea: 0n,
   effectiveSmallArea: 0n,
   poolLimitedMode: false,
@@ -187,7 +195,7 @@ function formatLedgerTime(timestamp: number, language: Language) {
   }).format(new Date(timestamp * 1000));
 }
 
-async function getLogsInRanges(provider: JsonRpcProvider, topics: Array<string | null>, latestBlock: number) {
+async function getLogsInRanges(provider: JsonRpcProvider, topics: Array<string | null>, latestBlock: number, firstBlock = MINING_DEPLOYMENT_BLOCK) {
   const getRange = async (fromBlock: number, toBlock: number): Promise<Log[]> => {
     try {
       return await provider.getLogs({ address: MINING_ADDRESS, fromBlock, toBlock, topics });
@@ -203,10 +211,50 @@ async function getLogsInRanges(provider: JsonRpcProvider, topics: Array<string |
   };
 
   const logs: Log[] = [];
-  for (let fromBlock = MINING_DEPLOYMENT_BLOCK; fromBlock <= latestBlock; fromBlock += LOG_QUERY_BLOCK_SPAN) {
+  for (let fromBlock = firstBlock; fromBlock <= latestBlock; fromBlock += LOG_QUERY_BLOCK_SPAN) {
     logs.push(...await getRange(fromBlock, Math.min(fromBlock + LOG_QUERY_BLOCK_SPAN - 1, latestBlock)));
   }
   return logs;
+}
+
+async function loadTodayClaims(account: string) {
+  const empty = { gpc: 0n, usdt: 0n, staticGpc: 0n, dynamicGpc: 0n };
+  const latestBlock = await HISTORY_PROVIDER.getBlock("latest");
+  if (!latestBlock) return empty;
+
+  const cstOffset = 8 * 60 * 60;
+  const daySeconds = 24 * 60 * 60;
+  const todayStart = Math.floor((latestBlock.timestamp + cstOffset) / daySeconds) * daySeconds - cstOffset;
+  const todayEnd = todayStart + daySeconds;
+  const firstBlock = Math.max(MINING_DEPLOYMENT_BLOCK, latestBlock.number - 200_000);
+  const accountTopic = zeroPadValue(account, 32);
+  const withdrawTopic = MINING_INTERFACE.getEvent("Withdrawn")!.topicHash;
+  const logs = await getLogsInRanges(HISTORY_PROVIDER, [withdrawTopic, accountTopic], latestBlock.number, firstBlock);
+  const blockNumbers = [...new Set(logs.map(log => log.blockNumber))];
+  const blocks = await Promise.all(blockNumbers.map(blockNumber => HISTORY_PROVIDER.getBlock(blockNumber)));
+  const timestamps = new Map(blocks.filter(Boolean).map(block => [block!.number, block!.timestamp]));
+
+  return logs.reduce((total, log) => {
+    const timestamp = timestamps.get(log.blockNumber) || 0;
+    if (timestamp < todayStart || timestamp >= todayEnd) return total;
+    const parsed = MINING_INTERFACE.parseLog(log);
+    if (!parsed) return total;
+
+    const staticUsdt = parsed.args.staticRewardUsdt as bigint;
+    const dynamicUsdt = parsed.args.communityRewardUsdt as bigint;
+    const netGpc = parsed.args.netGpc as bigint;
+    const gpcPrice = parsed.args.gpcPrice as bigint;
+    const rewardUsdt = staticUsdt + dynamicUsdt;
+    const staticGpc = rewardUsdt === 0n ? 0n : netGpc * staticUsdt / rewardUsdt;
+    const dynamicGpc = netGpc - staticGpc;
+
+    return {
+      gpc: total.gpc + netGpc,
+      usdt: total.usdt + netGpc * gpcPrice / 10n ** 18n,
+      staticGpc: total.staticGpc + staticGpc,
+      dynamicGpc: total.dynamicGpc + dynamicGpc,
+    };
+  }, empty);
 }
 
 function errorDetails(error: unknown) {
@@ -287,6 +335,7 @@ export default function Home() {
   const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([]);
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [ledgerError, setLedgerError] = useState<LocalizedStatus | null>(null);
+  const refreshSequence = useRef(0);
 
   const text = (zh: string, en: string) => language === "zh" ? zh : en;
 
@@ -397,6 +446,7 @@ export default function Home() {
     if (!ethereum?.on) return;
 
     const invalidateSession = () => {
+      refreshSequence.current += 1;
       setProvider(null);
       setAccount("");
       setSnapshot(emptySnapshot);
@@ -415,6 +465,7 @@ export default function Home() {
   }, []);
 
   const refresh = useCallback(async (activeProvider: BrowserProvider, activeAccount: string) => {
+    const refreshId = ++refreshSequence.current;
     if (!isConfigured) {
       setStatus({ zh: "等待配置已部署的挖矿合约地址", en: "Waiting for the deployed mining contract address" });
       return;
@@ -422,6 +473,7 @@ export default function Home() {
 
     const mining = new Contract(MINING_ADDRESS, MINING_ABI, activeProvider);
     const usdt = new Contract(USDT_ADDRESS, ERC20_ABI, activeProvider);
+    const todayClaimsPromise = loadTodayClaims(activeAccount).catch(() => ({ gpc: 0n, usdt: 0n, staticGpc: 0n, dynamicGpc: 0n }));
     const [user, parent, totalPower, poolGpc, community, directReferralAddresses, largestBranch, teamNodeCount, usdtBalance, allowance, oracleAddress] = await Promise.all([
       mining.users(activeAccount),
       mining.parentOf(activeAccount),
@@ -465,6 +517,10 @@ export default function Home() {
       communityReward: reward?.communityRewardUsdt ?? 0n,
       totalReward: reward?.totalRewardUsdt ?? 0n,
       grossGpc: reward?.grossGpc ?? 0n,
+      claimedTodayGpc: 0n,
+      claimedTodayUsdt: 0n,
+      claimedTodayStaticGpc: 0n,
+      claimedTodayDynamicGpc: 0n,
       smallArea: community.smallArea,
       effectiveSmallArea: community.effectiveSmallArea,
       poolLimitedMode: reward?.poolLimitedMode ?? false,
@@ -472,6 +528,16 @@ export default function Home() {
       largestBranch: largestBranch.branch,
       teamNodeCount,
       directReferrals,
+    });
+    void todayClaimsPromise.then(todayClaims => {
+      if (refreshSequence.current !== refreshId) return;
+      setSnapshot(current => ({
+        ...current,
+        claimedTodayGpc: todayClaims.gpc,
+        claimedTodayUsdt: todayClaims.usdt,
+        claimedTodayStaticGpc: todayClaims.staticGpc,
+        claimedTodayDynamicGpc: todayClaims.dynamicGpc,
+      }));
     });
     setCurrentTime(Math.floor(Date.now() / 1000));
     setStatus(oracleReady
@@ -686,17 +752,17 @@ export default function Home() {
         )}
 
         <div className="tab-page" hidden={activeTab !== "home"}>
-          <section className="balance-card" aria-label={text("今日收益", "Today's rewards")}>
+          <section className="balance-card" aria-label={text("今日已领取", "Claimed today")}>
             <div className="balance-topline">
-              <span>{text("今日可领取", "Claimable today")}</span>
-              <span className="mode-chip">{snapshot.poolLimitedMode ? text("矿池模式", "Pool mode") : text("固定模式", "Fixed mode")}</span>
+              <span>{text("今日已领取", "Claimed today")}</span>
+              <span className="mode-chip">{text("链上到账", "On-chain settled")}</span>
             </div>
-            <div className="main-balance"><strong>{compact(snapshot.grossGpc, language, 4)}</strong><span>GPC</span></div>
-            <p>≈ {compact(snapshot.totalReward, language, 4)} USDT</p>
+            <div className="main-balance"><strong>{compact(snapshot.claimedTodayGpc, language, 4)}</strong><span>GPC</span></div>
+            <p>≈ {compact(snapshot.claimedTodayUsdt, language, 4)} USDT</p>
             <div className="yield-split">
-              <div><span>{text("静态收益", "Static reward")}</span><strong>{compact(snapshot.staticReward, language, 4)} U</strong></div>
+              <div><span>{text("静态收益", "Static reward")}</span><strong>{compact(snapshot.claimedTodayStaticGpc, language, 4)} GPC</strong></div>
               <i />
-              <div><span>{text("社区收益", "Community reward")}</span><strong>{compact(snapshot.communityReward, language, 4)} U</strong></div>
+              <div><span>{text("动态收益", "Dynamic reward")}</span><strong>{compact(snapshot.claimedTodayDynamicGpc, language, 4)} GPC</strong></div>
             </div>
             <button className="claim-button" onClick={withdraw} disabled={busy || !account || !canWithdraw || snapshot.totalReward === 0n}>
               <DappIcon name="withdraw" size={18} />{text("领取收益", "Claim rewards")}
@@ -707,7 +773,7 @@ export default function Home() {
 
           <section className="metrics-grid" aria-label={text("账户概览", "Account overview")}>
             <article><span>{text("个人算力", "Personal power")}</span><strong>{compact(snapshot.power, language)}</strong><small>POWER</small></article>
-            <article><span>{text("今日预计", "Estimated today")}</span><strong>{compact(snapshot.totalReward, language, 4)}</strong><small>USDT</small></article>
+            <article><span>{text("今日已领取", "Claimed today")}</span><strong>{compact(snapshot.claimedTodayGpc, language, 4)}</strong><small>GPC</small></article>
             <article><span>{text("全网总算力", "Network power")}</span><strong>{compact(snapshot.totalPower, language)}</strong><small>POWER</small></article>
             <article><span>{text("订单矿池", "Mining pool")}</span><strong>{compact(snapshot.poolGpc, language)}</strong><small>GPC</small></article>
           </section>

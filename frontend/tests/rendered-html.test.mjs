@@ -28,7 +28,10 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(html, /直推下级/);
   assert.match(html, /社区收益全额烧伤规则/);
   assert.match(html, /社区收益为 0 并全部烧伤/);
-  assert.match(html, /今日收益/);
+  assert.match(html, /今日已领取/);
+  assert.match(html, /链上到账/);
+  assert.match(html, /动态收益/);
+  assert.doesNotMatch(html, /今日可领取|今日预计/);
   assert.match(html, /aria-label="切换为英文">EN</);
   assert.match(html, /查看 GPC 代币合约/);
   assert.match(html, /10%.*筑 LP/);
@@ -66,6 +69,10 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /领取收益消耗/);
   assert.match(source, /180 天未提现清零/);
   assert.match(source, /直推奖励消耗/);
+  assert.match(source, /loadTodayClaims/);
+  assert.match(source, /claimedTodayGpc/);
+  assert.match(source, /claimedTodayStaticGpc/);
+  assert.match(source, /claimedTodayDynamicGpc/);
   assert.doesNotMatch(source, /bscscan\.com\/address\/\$\{snapshot\.parent\}/);
   assert.doesNotMatch(source, /bscscan\.com\/address\/\$\{referral\.address\}/);
   assert.match(source, /<div className="parent-row">/);
