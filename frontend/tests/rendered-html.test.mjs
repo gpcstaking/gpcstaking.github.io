@@ -34,7 +34,11 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(html, /GPC 销毁量/);
   assert.doesNotMatch(html, /今日可领取|今日预计/);
   assert.match(html, /aria-label="切换为英文">EN</);
-  assert.match(html, /查看 GPC 代币合约/);
+  assert.match(html, /GPC首个链游—GPC传奇/);
+  assert.match(html, /1GPC=10元宝/);
+  assert.match(html, /进入游戏/);
+  assert.match(html, /href="http:\/\/cq\.opengpc\.com"/);
+  assert.doesNotMatch(html, /我的账户|查看 GPC 代币合约/);
   assert.match(html, /10%.*筑 LP/);
   assert.match(html, /20%.*直推/);
   assert.match(html, /70%.*质押矿池/);
@@ -76,6 +80,9 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /claimedTodayDynamicGpc/);
   assert.match(source, /0x000000000000000000000000000000000000dEaD/);
   assert.match(source, /gpc\.balanceOf\(DEAD_ADDRESS\)/);
+  assert.match(source, /"home" \| "order" \| "team" \| "ecosystem"/);
+  assert.match(source, /switchTab\("ecosystem"\)/);
+  assert.doesNotMatch(source, /activeTab !== "profile"|switchTab\("profile"\)/);
   assert.doesNotMatch(source, /bscscan\.com\/address\/\$\{snapshot\.parent\}/);
   assert.doesNotMatch(source, /bscscan\.com\/address\/\$\{referral\.address\}/);
   assert.match(source, /<div className="parent-row">/);

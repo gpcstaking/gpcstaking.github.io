@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BrowserProvider,
   Contract,
@@ -106,7 +106,7 @@ type Snapshot = {
   directReferrals: Array<{ address: string; branchPower: bigint }>;
 };
 
-type AppTab = "home" | "order" | "team" | "profile";
+type AppTab = "home" | "order" | "team" | "ecosystem";
 type LedgerKind = "power" | "promotionQuota";
 type LedgerEntry = {
   id: string;
@@ -349,11 +349,6 @@ export default function Home() {
   const canWithdraw = snapshot.nextWithdrawAt !== 0 && currentTime >= snapshot.nextWithdrawAt;
   const bindingRequired = Boolean(account) && !isBound;
   const communityRewardBurned = snapshot.effectiveSmallArea < snapshot.smallArea;
-
-  const contractLink = useMemo(
-    () => `https://bscscan.com/token/${GPC_ADDRESS}`,
-    [],
-  );
 
   useEffect(() => {
     const savedLanguage = window.localStorage.getItem("gpc-language");
@@ -858,20 +853,24 @@ export default function Home() {
           <div className="burn-note"><DappIcon name="shield" size={16} /><div><strong>{text("社区收益全额烧伤规则", "Full community reward burn")}</strong><span>{text("小区有效算力低于小区总算力时，社区收益为 0 并全部烧伤；只有有效算力覆盖全部小区总算力时，才获得 5% 小区奖励。", "If effective power is below total small-area power, the full community reward is burned to zero. The 5% reward is paid only when effective power covers the entire small area.")}</span></div></div>
         </div>
 
-        <div className="tab-page" hidden={activeTab !== "profile"}>
-          <div className="page-heading"><span>ACCOUNT</span><h1>{text("我的账户", "My Account")}</h1><p>{text("查看钱包资产、推广额度和个人算力。", "View wallet assets, referral quota, and personal mining power.")}</p></div>
-          <article className="profile-card">
-            <div className="profile-wallet"><span><DappIcon name="wallet" size={20} /></span><div><small>{text("当前钱包", "Current wallet")}</small><strong>{account ? shortAddress(account) : text("尚未连接", "Not connected")}</strong></div><button onClick={connectWallet} disabled={busy}>{account ? text("切换", "Switch") : text("连接", "Connect")}</button></div>
-            <div className="profile-assets"><div><span>{text("USDT 余额", "USDT balance")}</span><strong>{compact(snapshot.usdtBalance, language)}</strong></div><div><span>{text("推广额度", "Referral quota")}</span><strong>{compact(snapshot.promotionQuota, language)}</strong></div><div><span>{text("个人算力", "Personal power")}</span><strong>{compact(snapshot.power, language)}</strong></div><div><span>{text("下次提现", "Next claim")}</span><strong>{snapshot.nextWithdrawAt ? formatTime(snapshot.nextWithdrawAt, language) : text("未开始", "Not started")}</strong></div></div>
+        <div className="tab-page" hidden={activeTab !== "ecosystem"}>
+          <div className="page-heading"><span>ECOSYSTEM</span><h1>{text("GPC 传奇", "GPC Legend")}</h1><p>{text("探索由 GPC 通缩机制驱动的链游生态。", "Explore a blockchain gaming ecosystem powered by GPC tokenomics.")}</p></div>
+          <article className="ecosystem-game-card">
+            <span className="ecosystem-kicker">GPC LEGEND</span>
+            <h2>{text("GPC首个链游—GPC传奇", "GPC's First Blockchain Game — GPC Legend")}</h2>
+            <p>{text(
+              "GPC传奇是全球首款道具交易一体化的区块链生态链游，底层基于去中心化代币GPC运行。GPC 总量恒定且交易过程中持续销毁，打造极具稀缺价值。GPC传奇恒定充值规则：1GPC=10元宝，链上协议写死永远无法修改，所有玩家充值的GPC全部打入黑洞销毁，进一步缩减流通量。GPC价值提升，账号、装备道具的价值也会同步上涨，游戏内道具支持直接售卖兑换GPC。通缩机制持续赋能生态，保障每一位参与者的权益，打造全员共利的良性链游环境，点击下方进入游戏即刻开启全新冒险之旅！",
+              "GPC Legend is the world's first blockchain ecosystem game with integrated item trading, powered by the decentralized GPC token. GPC has a fixed supply and is continuously burned through transactions, creating lasting scarcity. Its recharge rule is permanently fixed on-chain at 1 GPC = 10 ingots and cannot be changed. Every GPC used by players for recharge is sent to the burn address, further reducing circulation. As GPC grows in value, game accounts, equipment, and items can appreciate as well, while in-game items can be sold directly for GPC. This deflationary model continuously supports the ecosystem, protects participants, and builds a healthy game economy where everyone can benefit. Enter the game below and begin your new adventure now!"
+            )}</p>
+            <a className="enter-game-button" href="http://cq.opengpc.com" target="_blank" rel="noreferrer"><DappIcon name="link" size={18} />{text("进入游戏", "Enter Game")}</a>
           </article>
-          <a className="contract-link" href={contractLink} target="_blank" rel="noreferrer">{text("查看 GPC 代币合约", "View GPC token contract")} <DappIcon name="chevron" size={15} /></a>
         </div>
 
         <nav className="bottom-nav" aria-label={text("主导航", "Main navigation")}>
           <button className={activeTab === "home" ? "active" : ""} onClick={() => switchTab("home")}><DappIcon name="home" /><span>{text("首页", "Home")}</span></button>
           <button className={activeTab === "order" ? "active" : ""} onClick={() => switchTab("order")}><DappIcon name="order" /><span>{text("质押", "Stake")}</span></button>
           <button className={activeTab === "team" ? "active" : ""} onClick={() => switchTab("team")}><DappIcon name="team" /><span>{text("团队", "Team")}</span></button>
-          <button className={activeTab === "profile" ? "active" : ""} onClick={() => switchTab("profile")}><DappIcon name="user" /><span>{text("我的", "Account")}</span></button>
+          <button className={activeTab === "ecosystem" ? "active" : ""} onClick={() => switchTab("ecosystem")}><DappIcon name="link" /><span>{text("生态", "Ecosystem")}</span></button>
         </nav>
 
         {bindingRequired && (
