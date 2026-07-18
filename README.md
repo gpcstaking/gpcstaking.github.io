@@ -20,12 +20,12 @@ The proxy separates permissions:
 
 - Deployer and temporary upgrade owner: `0xB7924467cEce8FD55dA013d8cFe2333173c9C236`
 - Oracle proxy: `0x7c7CdA7C435776815606879390523c6486C0b0fB`
-- Oracle implementation: `0xad8Ac4EFDD0901DF3747325721ee8817B7C2f65A`
+- Oracle implementation: `0x17C2DBa615C4e43074eeA98Ea6FFCeA62C599747`
 - Oracle ProxyAdmin: `0xcCbde183E2D5c945500CF19CFa3EFd31b877611C`
 - Oracle keeper: `0x3bEacEd5Ad0806F3536cdCcA82625309D5CF6F4A`
 - Rolling Oracle upgrade: `2026-07-17 18:07:31 CST`
 - Mining proxy: `0x7C7C849734ea94a590266F90B5fD63D555ed3ca3`
-- Mining implementation: `0xC51049b1E959a6AEd858F13230262a555E84899f`
+- Mining implementation: `0x671dd78E4E23A58F16e549F5380cB4a055ad1578`
 - Mining ProxyAdmin: `0x22FA01523a7b681F09ed181fBB2A096d2Ca5Cb56`
 - DApp: `https://gpcstaking.github.io/`
 
@@ -61,7 +61,7 @@ Copy `.env.example` to an untracked `.env`. Set `PRIVATE_KEY`, `BSC_RPC_URL`, `B
 
 Never reorder, remove, or change the type of existing storage fields. New mining fields must consume slots from `GpcMiningCore.__gap`; new oracle fields must consume slots from `GpcSixHourOracle.__gap`.
 
-The rolling oracle must receive a permissionless `update()` transaction once every five minutes. It stores 74 cumulative-price observations. Every price read appends the current Pancake cumulative price in memory and calculates the TWAP for the six hours immediately preceding the current block, so a transaction is not held to the last five-minute keeper snapshot. During warm-up it uses all available history as a partial TWAP; when no elapsed observation exists yet, it falls back to the current two-pair spot price. The oracle becomes stale after ten minutes without a keeper point. Withdrawals require both a fresh Oracle price and current spot prices within the configured deviation. Aggregate withdrawals are capped at 5% of the window-opening mining pool per 24-hour window. See [TOKENOMICS.md](./TOKENOMICS.md) for the exact formulas and operational rules.
+The rolling oracle must receive a permissionless `update()` transaction once every five minutes. It stores 74 cumulative-price observations. Every price read appends the current Pancake cumulative price in memory and calculates the TWAP for the six hours immediately preceding the current block, so a transaction is not held to the last five-minute keeper snapshot. During warm-up it uses all available history as a partial TWAP; when no elapsed observation exists yet, it falls back to the current two-pair spot price. The oracle tolerates short public-keeper scheduling delays and becomes stale after thirty minutes without a keeper point. Withdrawals require both a fresh Oracle price and current spot prices within the configured deviation. Aggregate withdrawals are capped at 5% of the window-opening mining pool per 24-hour window. See [TOKENOMICS.md](./TOKENOMICS.md) for the exact formulas and operational rules.
 
 ## Security status
 

@@ -22,12 +22,20 @@ const MINING_ABI = [
   "function totalPower() view returns (uint256)",
   "function miningPoolGpc() view returns (uint256)",
   "function communityPower(address) view returns (uint256 total,uint256 largestBranchPower,uint256 smallArea,uint256 effectiveSmallArea)",
+  "function directReferrals(address) view returns (address[])",
   "function quoteRewards(address) view returns ((uint256 staticRewardUsdt,uint256 communityRewardUsdt,uint256 totalRewardUsdt,uint256 grossGpc,uint256 gpcPrice,uint256 poolValueUsdt,uint256 smallAreaPower,uint256 effectiveSmallAreaPower,bool poolLimitedMode))",
   "function oracle() view returns (address)",
   "function bindReferral(address parent)",
   "function router() view returns (address)",
   "function placeOrder(uint256 deadline,uint256 userMinGpcOut,uint256 userMinWbnbOut,uint256 userMinLpGpc,uint256 userMinLpWbnb)",
   "function withdraw()",
+  "error RootCannotOrder()",
+  "error ReferralRequired()",
+  "error OrderCooldownActive()",
+  "error InvalidDeadline()",
+  "error OraclePriceInvalid()",
+  "error SpotTwapDeviationTooHigh(address asset,uint256 spotPrice,uint256 twapPrice)",
+  "error SwapOutputTooLow()",
 ];
 
 const ORACLE_ABI = [
@@ -70,6 +78,7 @@ type Snapshot = {
   effectiveSmallArea: bigint;
   poolLimitedMode: boolean;
   oracleReady: boolean;
+  directReferrals: string[];
 };
 
 type AppTab = "home" | "order" | "team" | "profile";
@@ -94,6 +103,7 @@ const emptySnapshot: Snapshot = {
   effectiveSmallArea: 0n,
   poolLimitedMode: false,
   oracleReady: false,
+  directReferrals: [],
 };
 
 declare global {
@@ -123,6 +133,36 @@ function formatTime(timestamp: number, language: Language) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(timestamp * 1000));
+}
+
+function errorDetails(error: unknown) {
+  if (!error || typeof error !== "object") return String(error ?? "");
+  const candidate = error as {
+    errorName?: string;
+    shortMessage?: string;
+    reason?: string;
+    message?: string;
+    info?: { error?: { message?: string } };
+  };
+  return [candidate.errorName, candidate.shortMessage, candidate.reason, candidate.info?.error?.message, candidate.message]
+    .filter(Boolean)
+    .join(" | ");
+}
+
+function friendlyTransactionError(error: unknown, language: Language) {
+  const details = errorDetails(error);
+  const localized = (zh: string, en: string) => language === "zh" ? zh : en;
+
+  if (/ACTION_REJECTED|user rejected|User denied/i.test(details)) return localized("已取消钱包确认", "Wallet confirmation cancelled");
+  if (/insufficient funds/i.test(details)) return localized("钱包 BNB 不足，无法支付 Gas", "Not enough BNB to pay gas");
+  if (/SpotTwapDeviationTooHigh/i.test(details)) return localized("当前价格偏离 6 小时均价超过安全范围，本次质押未扣款，请稍后重试", "The live price is outside the safe 6-hour range. No funds were taken; try again later.");
+  if (/PriceStale|PriceUnavailable|OraclePriceInvalid/i.test(details)) return localized("价格服务正在更新，本次质押未扣款，请稍后刷新", "Price service is updating. No funds were taken; refresh shortly.");
+  if (/OrderCooldownActive/i.test(details)) return localized("两次质押需要间隔 1 分钟", "Wait 1 minute between stakes");
+  if (/ReferralRequired/i.test(details)) return localized("请先绑定有效上级", "Bind a valid sponsor first");
+  if (/RootCannotOrder/i.test(details)) return localized("根节点钱包不能参与质押", "The root wallet cannot stake");
+  if (/TRANSFER_FROM_FAILED|transfer amount exceeds balance|SafeERC20|insufficient allowance/i.test(details)) return localized("USDT 余额或授权不足，本次质押未扣款", "Insufficient USDT balance or allowance. No funds were taken.");
+  if (/INSUFFICIENT_OUTPUT|SwapOutputTooLow|slippage/i.test(details)) return localized("价格波动过大，本次质押未扣款，请刷新后重试", "Price moved too much. No funds were taken; refresh and retry.");
+  return details || localized("交易失败，请稍后重试", "Transaction failed. Try again shortly.");
 }
 
 type IconName = "home" | "order" | "team" | "user" | "wallet" | "withdraw" | "link" | "refresh" | "shield" | "chevron";
@@ -212,12 +252,13 @@ export default function Home() {
 
     const mining = new Contract(MINING_ADDRESS, MINING_ABI, activeProvider);
     const usdt = new Contract(USDT_ADDRESS, ERC20_ABI, activeProvider);
-    const [user, parent, totalPower, poolGpc, community, usdtBalance, allowance, oracleAddress] = await Promise.all([
+    const [user, parent, totalPower, poolGpc, community, directReferrals, usdtBalance, allowance, oracleAddress] = await Promise.all([
       mining.users(activeAccount),
       mining.parentOf(activeAccount),
       mining.totalPower(),
       mining.miningPoolGpc(),
       mining.communityPower(activeAccount),
+      mining.directReferrals(activeAccount),
       usdt.balanceOf(activeAccount),
       usdt.allowance(activeAccount, MINING_ADDRESS),
       mining.oracle(),
@@ -250,6 +291,7 @@ export default function Home() {
       effectiveSmallArea: community.effectiveSmallArea,
       poolLimitedMode: reward?.poolLimitedMode ?? false,
       oracleReady,
+      directReferrals: Array.from(directReferrals),
     });
     setCurrentTime(Math.floor(Date.now() / 1000));
     setStatus(oracleReady
@@ -305,7 +347,10 @@ export default function Home() {
   }
 
   async function runTransaction(label: LocalizedStatus, action: (signer: Awaited<ReturnType<BrowserProvider["getSigner"]>>) => Promise<{ wait: () => Promise<unknown> }>) {
-    if (!provider || !account) return connectWallet();
+    if (!provider || !account) {
+      await connectWallet();
+      return false;
+    }
     try {
       setBusy(true);
       const chainId = await window.ethereum?.request({ method: "eth_chainId" });
@@ -321,20 +366,22 @@ export default function Home() {
       await transaction.wait();
       await refresh(provider, account);
       setStatus({ zh: `${label.zh}成功`, en: `${label.en} successful` });
+      return true;
     } catch (error) {
-      const message = error instanceof Error ? error.message : `${label.en} failed`;
+      const message = friendlyTransactionError(error, language);
       setStatus({ zh: message, en: message });
+      return false;
     } finally {
       setBusy(false);
     }
   }
 
-  function bindReferral() {
+  async function bindReferral() {
     if (!isAddress(parentInput)) {
       setStatus({ zh: "请输入有效的上级钱包地址", en: "Enter a valid sponsor wallet address" });
-      return;
+      return false;
     }
-    return runTransaction({ zh: "绑定上级", en: "Bind sponsor" }, async signer => {
+    const succeeded = await runTransaction({ zh: "绑定上级", en: "Bind sponsor" }, async signer => {
       const mining = new Contract(MINING_ADDRESS, MINING_ABI, signer);
       const sponsorParent = await mining.parentOf(parentInput);
       if (sponsorParent === ZERO_ADDRESS) {
@@ -342,6 +389,16 @@ export default function Home() {
       }
       return mining.bindReferral(parentInput);
     });
+    if (succeeded) {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      setParentInput("");
+      window.setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: "auto" });
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+      }, 120);
+    }
+    return succeeded;
   }
 
   function approveUsdt() {
@@ -367,6 +424,7 @@ export default function Home() {
       const minLpGpc = (quotedGpc / 14n) * (BPS - LP_SLIPPAGE_BPS) / BPS;
       const minLpWbnb = quotedWbnb * (BPS - LP_SLIPPAGE_BPS) / BPS;
       const deadline = Math.floor(Date.now() / 1000) + 300;
+      await mining.placeOrder.staticCall(deadline, minGpcOut, minWbnbOut, minLpGpc, minLpWbnb);
       return mining.placeOrder(deadline, minGpcOut, minWbnbOut, minLpGpc, minLpWbnb);
     });
   }
@@ -454,10 +512,14 @@ export default function Home() {
               <button className="main-action" onClick={connectWallet} disabled={busy}>{text("连接钱包", "Connect wallet")}</button>
             ) : !isBound ? (
               <button className="main-action" disabled>{text("请先绑定上级", "Bind a sponsor first")}</button>
+            ) : !hasEnoughUsdt ? (
+              <button className="main-action" disabled>{text("USDT 余额不足（需要 1 USDT）", "Insufficient USDT (1 USDT required)")}</button>
             ) : needsApproval ? (
               <button className="main-action" onClick={approveUsdt} disabled={busy || !isConfigured}>{text("授权 1 USDT", "Approve 1 USDT")}</button>
+            ) : !snapshot.oracleReady ? (
+              <button className="main-action" disabled>{text("价格服务更新中，请稍后刷新", "Price service updating; refresh shortly")}</button>
             ) : (
-              <button className="main-action" onClick={placeOrder} disabled={busy || !isConfigured || !snapshot.oracleReady || !hasEnoughUsdt}>{text("确认质押", "Confirm staking")}</button>
+              <button className="main-action" onClick={placeOrder} disabled={busy || !isConfigured}>{text("确认质押", "Confirm staking")}</button>
             )}
             <div className="protect-note"><DappIcon name="shield" size={15} /><span>{text("5分钟观测 · 实时滚动6小时 · 不足6小时自动降级", "5-min observations · Live rolling 6H · Automatic fallback")}</span></div>
           </article>
@@ -477,6 +539,23 @@ export default function Home() {
               <a className="parent-row" href={`https://bscscan.com/address/${snapshot.parent}`} target="_blank" rel="noreferrer"><span>{text("我的上级", "My sponsor")}</span><strong>{shortAddress(snapshot.parent)}</strong><DappIcon name="chevron" size={16} /></a>
             ) : (
               <div className="team-connect-note">{text("连接钱包后查看团队信息", "Connect your wallet to view team data")}</div>
+            )}
+          </article>
+          <article className="direct-list-card">
+            <div className="direct-list-heading">
+              <div><span className="heading-icon"><DappIcon name="team" size={17} /></span><strong>{text("直推下级", "Direct referrals")}</strong></div>
+              <span>{snapshot.directReferrals.length}</span>
+            </div>
+            {snapshot.directReferrals.length > 0 ? (
+              <div className="direct-referral-list">
+                {snapshot.directReferrals.map((referral, index) => (
+                  <a className="direct-referral-row" href={`https://bscscan.com/address/${referral}`} target="_blank" rel="noreferrer" key={referral}>
+                    <span>{String(index + 1).padStart(2, "0")}</span><strong>{shortAddress(referral)}</strong><DappIcon name="chevron" size={16} />
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <div className="direct-empty">{account ? text("暂无直推下级，刷新后可查看最新链上关系", "No direct referrals yet. Refresh to load the latest on-chain relationships.") : text("连接钱包后查看直推下级", "Connect your wallet to view direct referrals")}</div>
             )}
           </article>
           <div className="burn-note"><DappIcon name="shield" size={16} /><div><strong>{text("社区收益烧伤规则", "Community reward cap")}</strong><span>{text("有效小区算力最高为个人算力的 5 倍，超出部分不计入奖励。", "Effective small-area power is capped at 5× personal power; excess power earns no reward.")}</span></div></div>
@@ -506,7 +585,7 @@ export default function Home() {
               <h2 id="binding-title">{text("绑定上级", "Bind Your Sponsor")}</h2>
               <p>{text("首次进入必须绑定有效上级。关系写入链上后不可修改。", "A valid sponsor is required on first entry. This on-chain relationship cannot be changed.")}</p>
               <label htmlFor="binding-parent">{text("上级钱包地址", "Sponsor wallet address")}</label>
-              <input id="binding-parent" value={parentInput} onChange={event => setParentInput(event.target.value.trim())} placeholder="0x..." autoComplete="off" spellCheck={false} />
+              <input id="binding-parent" value={parentInput} onFocus={event => event.currentTarget.scrollIntoView({ block: "center", behavior: "smooth" })} onChange={event => setParentInput(event.target.value.trim())} placeholder="0x..." autoComplete="off" autoCapitalize="none" inputMode="text" spellCheck={false} />
               <button onClick={bindReferral} disabled={busy || !isConfigured}>{busy ? text("验证并处理中…", "Validating…") : text("验证地址并绑定", "Validate and bind")}</button>
               <div className="binding-lock"><DappIcon name="shield" size={15} />{text("未完成绑定前无法进入其他页面", "Other pages remain locked until binding is complete")}</div>
             </div>

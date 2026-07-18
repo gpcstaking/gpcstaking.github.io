@@ -39,7 +39,7 @@ async function main() {
     console.log('GPC/USDT price:', ethers.formatEther(await oracle.price()));
     console.log('WBNB/USDT price:', ethers.formatEther(await oracle.bnbPrice()));
   } else {
-    console.log('Rolling TWAP is warming up; keep recording one point per minute.');
+    console.log('Rolling TWAP is warming up; keep recording one point every five minutes.');
   }
 }
 

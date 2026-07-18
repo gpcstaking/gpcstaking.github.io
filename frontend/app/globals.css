@@ -142,6 +142,18 @@ a { color: inherit; text-decoration: none; }
 .burn-note strong { color: #c5b69e; font-size: 12px; }
 .burn-note span { color: #756b5e; font-size: 10px; line-height: 1.55; }
 .team-connect-note { padding-top: 14px; color: var(--muted); font-size: 12px; text-align: center; }
+.direct-list-card { margin-top: 10px; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+.direct-list-heading { display: flex; align-items: center; justify-content: space-between; padding-bottom: 12px; }
+.direct-list-heading > div { display: flex; align-items: center; gap: 9px; }
+.direct-list-heading strong { font-size: 15px; }
+.direct-list-heading > span { min-width: 27px; padding: 5px 8px; border-radius: 999px; background: rgba(201,255,82,.08); color: var(--lime); font-size: 11px; text-align: center; }
+.direct-referral-list { border-top: 1px solid var(--line); }
+.direct-referral-row { min-height: 48px; display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
+.direct-referral-row:last-child { border-bottom: 0; }
+.direct-referral-row > span { color: #5e6963; font-family: var(--font-geist-mono), monospace; font-size: 10px; }
+.direct-referral-row strong { color: #c9d1cd; font-family: var(--font-geist-mono), monospace; font-size: 13px; font-weight: 600; }
+.direct-referral-row svg { color: var(--muted); }
+.direct-empty { padding: 14px 4px 2px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.6; text-align: center; }
 
 .profile-card { padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
 .profile-wallet { display: flex; align-items: center; gap: 10px; padding-bottom: 15px; border-bottom: 1px solid var(--line); }
@@ -164,14 +176,14 @@ a { color: inherit; text-decoration: none; }
 .bottom-nav button.active::before { content: ""; position: absolute; top: -9px; width: 24px; height: 2px; border-radius: 999px; background: var(--lime); box-shadow: 0 3px 12px rgba(201,255,82,.6); }
 .bottom-nav span { font-size: 11px; font-weight: 650; }
 
-.binding-gate { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 22px; background: rgba(2,4,3,.86); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
-.binding-modal { width: min(100%, 390px); padding: 26px 22px 22px; border: 1px solid rgba(201,255,82,.2); border-radius: 24px; background: linear-gradient(145deg, #172019, #0d120f); box-shadow: 0 24px 80px rgba(0,0,0,.6); }
+.binding-gate { position: fixed; z-index: 100; inset: 0; height: 100dvh; display: grid; place-items: center; overflow-y: auto; overscroll-behavior: contain; padding: max(22px, env(safe-area-inset-top)) 22px max(22px, env(safe-area-inset-bottom)); background: rgba(2,4,3,.86); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.binding-modal { width: min(100%, 390px); max-height: calc(100dvh - 44px); overflow-y: auto; overscroll-behavior: contain; padding: 26px 22px 22px; border: 1px solid rgba(201,255,82,.2); border-radius: 24px; background: linear-gradient(145deg, #172019, #0d120f); box-shadow: 0 24px 80px rgba(0,0,0,.6); }
 .binding-mark { width: 48px; height: 48px; display: grid; place-items: center; margin-bottom: 18px; border-radius: 15px; background: rgba(201,255,82,.12); color: var(--lime); }
 .binding-modal > small { color: var(--lime); font-family: var(--font-geist-mono), monospace; font-size: 11px; font-weight: 750; letter-spacing: .16em; }
 .binding-modal h2 { margin: 8px 0; font-size: 27px; letter-spacing: -.035em; }
 .binding-modal p { margin: 0 0 20px; color: var(--muted); font-size: 13px; line-height: 1.65; }
 .binding-modal label { display: block; margin-bottom: 8px; color: #aeb8b3; font-size: 12px; }
-.binding-modal input { width: 100%; height: 48px; padding: 0 13px; outline: none; border: 1px solid var(--line); border-radius: 12px; background: #080c0a; color: var(--text); font-family: var(--font-geist-mono), monospace; font-size: 13px; }
+.binding-modal input { width: 100%; height: 50px; padding: 0 13px; outline: none; border: 1px solid var(--line); border-radius: 12px; background: #080c0a; color: var(--text); font-family: var(--font-geist-mono), monospace; font-size: 16px; }
 .binding-modal input:focus { border-color: rgba(201,255,82,.55); box-shadow: 0 0 0 3px rgba(201,255,82,.08); }
 .binding-modal > button { width: 100%; height: 48px; margin-top: 10px; border: 0; border-radius: 12px; background: var(--lime); color: #0b100d; font-size: 15px; font-weight: 850; }
 .binding-lock { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 13px; color: #707b75; font-size: 11px; text-align: center; }
@@ -184,6 +196,13 @@ a { color: inherit; text-decoration: none; }
   .dapp-shell { padding-inline: 12px; }
   .app-brand > span:last-child { display: none; }
   .order-receive strong { padding-inline: 5px; font-size: 10px; }
+}
+
+@media (max-height: 620px) {
+  .binding-gate { place-items: start center; padding-block: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-bottom)); }
+  .binding-modal { max-height: calc(100dvh - 20px); padding-block: 18px 16px; }
+  .binding-mark { width: 40px; height: 40px; margin-bottom: 10px; }
+  .binding-modal p { margin-bottom: 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

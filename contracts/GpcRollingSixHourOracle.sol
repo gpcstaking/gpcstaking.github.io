@@ -14,7 +14,9 @@ import {IPancakePair} from './interfaces/IPancakePair.sol';
  */
 abstract contract GpcRollingSixHourOracle is GpcSixHourOracle {
     uint256 public constant OBSERVATION_INTERVAL = 5 minutes;
-    uint256 public constant MAX_PRICE_AGE = 10 minutes;
+    // Keep the five-minute sampling cadence, but tolerate short public-keeper scheduling delays.
+    // Reads still use the live cumulative price as their final point; this does not freeze prices.
+    uint256 public constant MAX_PRICE_AGE = 30 minutes;
     uint16 public constant MAX_OBSERVATIONS = 74;
     uint8 public constant MODE_SPOT = 0;
     uint8 public constant MODE_PARTIAL_TWAP = 1;

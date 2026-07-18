@@ -25,6 +25,7 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(html, />STAKING<\/small>/);
   assert.match(html, /GPC质押挖矿/);
   assert.match(html, /我的团队/);
+  assert.match(html, /直推下级/);
   assert.match(html, /今日收益/);
   assert.match(html, /aria-label="切换为英文">EN</);
   assert.match(html, /查看 GPC 代币合约/);
@@ -45,5 +46,11 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /const ORDER_AMOUNT = 1n \* 10n \*\* 18n/);
   assert.match(source, /approve\(MINING_ADDRESS, ORDER_AMOUNT\)/);
   assert.match(source, /授权 1 USDT/);
+  assert.match(source, /directReferrals\(address\)/);
+  assert.match(source, /placeOrder\.staticCall/);
   assert.doesNotMatch(source, /授权 1,000 USDT/);
+
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(styles, /\.binding-modal input[^}]*font-size:\s*16px/s);
+  assert.match(styles, /height:\s*100dvh/);
 });

@@ -78,10 +78,15 @@ describe('GpcSixHourOracle', function () {
     expect(nextPrice).to.be.lessThan(ethers.parseEther('1'));
   });
 
-  it('expires a rolling price when the five-minute keeper stops', async function () {
+  it('tolerates a short keeper delay and expires after thirty minutes', async function () {
     const { oracle } = await loadFixture(deployFixture);
     await recordIntervals(oracle, 72);
     await time.increase(10 * 60 + 1);
+
+    expect(await oracle.isReady()).to.equal(true);
+    expect(await oracle.price()).to.be.greaterThan(0);
+
+    await time.increase(20 * 60);
 
     await expect(oracle.price()).to.be.revertedWithCustomError(oracle, 'PriceStale');
     expect(await oracle.isReady()).to.equal(false);
