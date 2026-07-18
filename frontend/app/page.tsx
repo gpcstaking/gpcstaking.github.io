@@ -18,6 +18,7 @@ const MINING_ADDRESS = viteEnv.VITE_MINING_ADDRESS ?? nodeEnv?.NEXT_PUBLIC_MININ
 const USDT_ADDRESS = "0x55d398326f99059fF775485246999027B3197955";
 const GPC_ADDRESS = "0xD3c304697f63B279cd314F92c19cDBE5E5b1631A";
 const WBNB_ADDRESS = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c";
+const DEAD_ADDRESS = "0x000000000000000000000000000000000000dEaD";
 const BSC_CHAIN_ID = "0x38";
 
 const MINING_ABI = [
@@ -85,6 +86,7 @@ type Snapshot = {
   parent: string;
   totalPower: bigint;
   poolGpc: bigint;
+  burnedGpc: bigint;
   usdtBalance: bigint;
   allowance: bigint;
   staticReward: bigint;
@@ -129,6 +131,7 @@ const emptySnapshot: Snapshot = {
   parent: ZERO_ADDRESS,
   totalPower: 0n,
   poolGpc: 0n,
+  burnedGpc: 0n,
   usdtBalance: 0n,
   allowance: 0n,
   staticReward: 0n,
@@ -473,8 +476,9 @@ export default function Home() {
 
     const mining = new Contract(MINING_ADDRESS, MINING_ABI, activeProvider);
     const usdt = new Contract(USDT_ADDRESS, ERC20_ABI, activeProvider);
+    const gpc = new Contract(GPC_ADDRESS, ERC20_ABI, activeProvider);
     const todayClaimsPromise = loadTodayClaims(activeAccount).catch(() => ({ gpc: 0n, usdt: 0n, staticGpc: 0n, dynamicGpc: 0n }));
-    const [user, parent, totalPower, poolGpc, community, directReferralAddresses, largestBranch, teamNodeCount, usdtBalance, allowance, oracleAddress] = await Promise.all([
+    const [user, parent, totalPower, poolGpc, community, directReferralAddresses, largestBranch, teamNodeCount, usdtBalance, allowance, oracleAddress, burnedGpc] = await Promise.all([
       mining.users(activeAccount),
       mining.parentOf(activeAccount),
       mining.totalPower(),
@@ -486,6 +490,7 @@ export default function Home() {
       usdt.balanceOf(activeAccount),
       usdt.allowance(activeAccount, MINING_ADDRESS),
       mining.oracle(),
+      gpc.balanceOf(DEAD_ADDRESS),
     ]);
     const directReferrals = await Promise.all(
       Array.from(directReferralAddresses as string[]).map(async (address) => ({
@@ -511,6 +516,7 @@ export default function Home() {
       parent,
       totalPower,
       poolGpc,
+      burnedGpc,
       usdtBalance,
       allowance,
       staticReward: reward?.staticRewardUsdt ?? 0n,
@@ -773,7 +779,7 @@ export default function Home() {
 
           <section className="metrics-grid" aria-label={text("账户概览", "Account overview")}>
             <article><span>{text("个人算力", "Personal power")}</span><strong>{compact(snapshot.power, language)}</strong><small>POWER</small></article>
-            <article><span>{text("今日已领取", "Claimed today")}</span><strong>{compact(snapshot.claimedTodayGpc, language, 4)}</strong><small>GPC</small></article>
+            <article><span>{text("GPC 销毁量", "GPC burned")}</span><strong>{compact(snapshot.burnedGpc, language, 2)}</strong><small>GPC</small></article>
             <article><span>{text("全网总算力", "Network power")}</span><strong>{compact(snapshot.totalPower, language)}</strong><small>POWER</small></article>
             <article><span>{text("订单矿池", "Mining pool")}</span><strong>{compact(snapshot.poolGpc, language)}</strong><small>GPC</small></article>
           </section>
