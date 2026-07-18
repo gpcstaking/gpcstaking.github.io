@@ -28,6 +28,7 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(html, /直推下级/);
   assert.match(html, /社区收益全额烧伤规则/);
   assert.match(html, /社区收益为 0 并全部烧伤/);
+  assert.match(html, /今日社区已收益/);
   assert.match(html, /今日已领取/);
   assert.match(html, /链上到账/);
   assert.match(html, /动态收益/);

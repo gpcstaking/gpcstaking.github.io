@@ -817,7 +817,7 @@ export default function Home() {
         <div className="tab-page" hidden={activeTab !== "team"}>
           <div className="page-heading"><span>COMMUNITY</span><h1>{text("我的团队", "My Team")}</h1><p>{text("统计 30 层推荐关系，自动计算小区有效算力与社区奖励。", "Tracks 30 referral levels and calculates effective small-area power and community rewards.")}</p></div>
           <article className="community-hero">
-            <span>{text("今日社区收益", "Community reward today")}</span><strong>{compact(snapshot.communityReward, language, 4)} <small>USDT</small></strong><p>{communityRewardBurned ? text("有效算力低于小区总算力，本次社区收益全部烧伤", "Effective power is below total small-area power; the community reward is fully burned") : text("有效算力覆盖小区总算力，获得小区日收益的 5%", "Effective power covers the total small area; earn 5% of its daily rewards")}</p>
+            <span>{text("今日社区已收益", "Community earned today")}</span><strong>{compact(snapshot.communityReward, language, 4)} <small>USDT</small></strong><p>{communityRewardBurned ? text("有效算力低于小区总算力，本次社区收益全部烧伤", "Effective power is below total small-area power; the community reward is fully burned") : text("有效算力覆盖小区总算力，获得小区日收益的 5%", "Effective power covers the total small area; earn 5% of its daily rewards")}</p>
           </article>
           <article className="community-card">
             <div className="community-node-stats"><div><span>{text("直属节点数", "Direct nodes")}</span><strong>{formatCount(BigInt(snapshot.directReferrals.length), language)}</strong></div><div><span>{text("团队节点总数", "Total team nodes")}</span><strong>{formatCount(snapshot.teamNodeCount, language)}</strong></div></div>
