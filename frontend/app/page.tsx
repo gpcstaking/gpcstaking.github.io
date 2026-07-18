@@ -61,7 +61,7 @@ const WBNB_SWAP_AMOUNT = 5n * 10n ** 16n;
 const BPS = 10_000n;
 const USER_SWAP_SLIPPAGE_BPS = 50n; // 0.5% from the pre-signing router quote
 const LP_SLIPPAGE_BPS = 200n;
-const ORDER_GAS_HEADROOM_BPS = 3_000n; // BSC estimation can underfund deep router subcalls
+const TRANSACTION_GAS_HEADROOM_BPS = 3_000n; // BSC estimation can underfund nested contract calls
 
 type Snapshot = {
   power: bigint;
@@ -124,6 +124,10 @@ declare global {
 function compact(value: bigint, language: Language, maximumFractionDigits = 2) {
   const number = Number(formatEther(value));
   return new Intl.NumberFormat(language === "zh" ? "zh-CN" : "en-US", { maximumFractionDigits }).format(number);
+}
+
+function gasLimitWithHeadroom(estimatedGas: bigint) {
+  return estimatedGas * (BPS + TRANSACTION_GAS_HEADROOM_BPS) / BPS;
 }
 
 function shortAddress(address: string) {
@@ -413,7 +417,8 @@ export default function Home() {
       if (sponsorParent === ZERO_ADDRESS) {
         throw new Error(text("无效地址：该钱包不在 GPC 推荐网络中", "Invalid address: this wallet is not in the GPC referral network"));
       }
-      return mining.bindReferral(parentInput);
+      const estimatedGas = await mining.bindReferral.estimateGas(parentInput);
+      return mining.bindReferral(parentInput, { gasLimit: gasLimitWithHeadroom(estimatedGas) });
     });
     if (succeeded) {
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
@@ -430,7 +435,8 @@ export default function Home() {
   function approveUsdt() {
     return runTransaction({ zh: "授权 1 USDT", en: "Approve 1 USDT" }, async signer => {
       const usdt = new Contract(USDT_ADDRESS, ERC20_ABI, signer);
-      return usdt.approve(MINING_ADDRESS, ORDER_AMOUNT);
+      const estimatedGas = await usdt.approve.estimateGas(MINING_ADDRESS, ORDER_AMOUNT);
+      return usdt.approve(MINING_ADDRESS, ORDER_AMOUNT, { gasLimit: gasLimitWithHeadroom(estimatedGas) });
     });
   }
 
@@ -452,15 +458,15 @@ export default function Home() {
       const deadline = Math.floor(Date.now() / 1000) + 300;
       await mining.placeOrder.staticCall(deadline, minGpcOut, minWbnbOut, minLpGpc, minLpWbnb);
       const estimatedGas = await mining.placeOrder.estimateGas(deadline, minGpcOut, minWbnbOut, minLpGpc, minLpWbnb);
-      const gasLimit = estimatedGas * (BPS + ORDER_GAS_HEADROOM_BPS) / BPS;
-      return mining.placeOrder(deadline, minGpcOut, minWbnbOut, minLpGpc, minLpWbnb, { gasLimit });
+      return mining.placeOrder(deadline, minGpcOut, minWbnbOut, minLpGpc, minLpWbnb, { gasLimit: gasLimitWithHeadroom(estimatedGas) });
     });
   }
 
   function withdraw() {
     return runTransaction({ zh: "提现", en: "Claim" }, async signer => {
       const mining = new Contract(MINING_ADDRESS, MINING_ABI, signer);
-      return mining.withdraw();
+      const estimatedGas = await mining.withdraw.estimateGas();
+      return mining.withdraw({ gasLimit: gasLimitWithHeadroom(estimatedGas) });
     });
   }
 

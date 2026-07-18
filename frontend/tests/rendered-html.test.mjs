@@ -46,7 +46,7 @@ test("server-renders the GPC mining application shell", async () => {
 
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   assert.match(source, /const ORDER_AMOUNT = 1n \* 10n \*\* 18n/);
-  assert.match(source, /approve\(MINING_ADDRESS, ORDER_AMOUNT\)/);
+  assert.match(source, /approve\(MINING_ADDRESS, ORDER_AMOUNT,/);
   assert.match(source, /授权 1 USDT/);
   assert.match(source, /directReferrals\(address\)/);
   assert.match(source, /branchPower\(address,address\)/);
@@ -55,9 +55,12 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /大区/);
   assert.match(source, /小区/);
   assert.match(source, /placeOrder\.staticCall/);
-  assert.match(source, /ORDER_GAS_HEADROOM_BPS = 3_000n/);
+  assert.match(source, /TRANSACTION_GAS_HEADROOM_BPS = 3_000n/);
+  assert.match(source, /gasLimitWithHeadroom/);
+  assert.match(source, /bindReferral\.estimateGas/);
+  assert.match(source, /approve\.estimateGas/);
   assert.match(source, /placeOrder\.estimateGas/);
-  assert.match(source, /\{ gasLimit \}/);
+  assert.match(source, /withdraw\.estimateGas/);
   assert.match(source, /0xf85bf639/);
   assert.match(source, /根节点钱包不能参与质押，请切换其他钱包/);
   assert.match(source, /0x613f0ee7/);
