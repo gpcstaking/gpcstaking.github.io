@@ -206,6 +206,7 @@ export default function Home() {
   const hasEnoughUsdt = snapshot.usdtBalance >= ORDER_AMOUNT;
   const canWithdraw = snapshot.nextWithdrawAt !== 0 && currentTime >= snapshot.nextWithdrawAt;
   const bindingRequired = Boolean(account) && !isBound;
+  const communityRewardBurned = snapshot.effectiveSmallArea < snapshot.smallArea;
 
   const contractLink = useMemo(
     () => `https://bscscan.com/token/${GPC_ADDRESS}`,
@@ -531,10 +532,10 @@ export default function Home() {
         <div className="tab-page" hidden={activeTab !== "team"}>
           <div className="page-heading"><span>COMMUNITY</span><h1>{text("我的团队", "My Team")}</h1><p>{text("统计 30 层推荐关系，自动计算小区有效算力与社区奖励。", "Tracks 30 referral levels and calculates effective small-area power and community rewards.")}</p></div>
           <article className="community-hero">
-            <span>{text("今日社区收益", "Community reward today")}</span><strong>{compact(snapshot.communityReward, language, 4)} <small>USDT</small></strong><p>{text("小区有效算力日收益的 5%", "5% of effective small-area daily rewards")}</p>
+            <span>{text("今日社区收益", "Community reward today")}</span><strong>{compact(snapshot.communityReward, language, 4)} <small>USDT</small></strong><p>{communityRewardBurned ? text("有效算力低于小区总算力，本次社区收益全部烧伤", "Effective power is below total small-area power; the community reward is fully burned") : text("有效算力覆盖小区总算力，获得小区日收益的 5%", "Effective power covers the total small area; earn 5% of its daily rewards")}</p>
           </article>
           <article className="community-card">
-            <div className="community-stats"><div><span>{text("小区算力", "Small-area power")}</span><strong>{compact(snapshot.smallArea, language)}</strong></div><div><span>{text("有效小区", "Effective area")}</span><strong>{compact(snapshot.effectiveSmallArea, language)}</strong></div><div><span>{text("奖励比例", "Reward rate")}</span><strong>5%</strong></div></div>
+            <div className="community-stats"><div><span>{text("小区总算力", "Total small-area power")}</span><strong>{compact(snapshot.smallArea, language)}</strong></div><div><span>{text("小区有效算力", "Effective small-area power")}</span><strong>{compact(snapshot.effectiveSmallArea, language)}</strong></div><div><span>{text("奖励状态", "Reward status")}</span><strong className={communityRewardBurned ? "burned" : "active"}>{snapshot.smallArea === 0n ? text("暂无", "None") : communityRewardBurned ? text("全部烧伤", "Burned") : text("已激活", "Active")}</strong></div></div>
             {isBound ? (
               <a className="parent-row" href={`https://bscscan.com/address/${snapshot.parent}`} target="_blank" rel="noreferrer"><span>{text("我的上级", "My sponsor")}</span><strong>{shortAddress(snapshot.parent)}</strong><DappIcon name="chevron" size={16} /></a>
             ) : (
@@ -558,7 +559,7 @@ export default function Home() {
               <div className="direct-empty">{account ? text("暂无直推下级，刷新后可查看最新链上关系", "No direct referrals yet. Refresh to load the latest on-chain relationships.") : text("连接钱包后查看直推下级", "Connect your wallet to view direct referrals")}</div>
             )}
           </article>
-          <div className="burn-note"><DappIcon name="shield" size={16} /><div><strong>{text("社区收益烧伤规则", "Community reward cap")}</strong><span>{text("有效小区算力最高为个人算力的 5 倍，超出部分不计入奖励。", "Effective small-area power is capped at 5× personal power; excess power earns no reward.")}</span></div></div>
+          <div className="burn-note"><DappIcon name="shield" size={16} /><div><strong>{text("社区收益全额烧伤规则", "Full community reward burn")}</strong><span>{text("小区有效算力低于小区总算力时，社区收益为 0 并全部烧伤；只有有效算力覆盖全部小区总算力时，才获得 5% 小区奖励。", "If effective power is below total small-area power, the full community reward is burned to zero. The 5% reward is paid only when effective power covers the entire small area.")}</span></div></div>
         </div>
 
         <div className="tab-page" hidden={activeTab !== "profile"}>

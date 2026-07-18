@@ -26,6 +26,8 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(html, /GPC质押挖矿/);
   assert.match(html, /我的团队/);
   assert.match(html, /直推下级/);
+  assert.match(html, /社区收益全额烧伤规则/);
+  assert.match(html, /社区收益为 0 并全部烧伤/);
   assert.match(html, /今日收益/);
   assert.match(html, /aria-label="切换为英文">EN</);
   assert.match(html, /查看 GPC 代币合约/);

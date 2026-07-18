@@ -553,18 +553,23 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
 
         (, , quote.smallAreaPower, quote.effectiveSmallAreaPower) = communityPower(account);
         quote.poolLimitedMode = quote.poolValueUsdt * 20 < totalPower * 5;
+        // Community rewards are all-or-nothing. If the 5x personal-power cap cannot
+        // cover the complete small area, the entire community reward is burned.
+        uint256 rewardedSmallAreaPower = quote.effectiveSmallAreaPower >= quote.smallAreaPower
+            ? quote.effectiveSmallAreaPower
+            : 0;
 
         if (quote.poolLimitedMode) {
             quote.staticRewardUsdt = Math.mulDiv(quote.poolValueUsdt, personalPower, totalPower) / 100;
             quote.communityRewardUsdt = Math.mulDiv(
-                Math.mulDiv(quote.poolValueUsdt, quote.effectiveSmallAreaPower, totalPower),
+                Math.mulDiv(quote.poolValueUsdt, rewardedSmallAreaPower, totalPower),
                 COMMUNITY_RATE_BPS,
                 BPS * 100
             );
         } else {
             quote.staticRewardUsdt = Math.mulDiv(personalPower, FIXED_DAILY_RATE_BPS, BPS);
             quote.communityRewardUsdt = Math.mulDiv(
-                Math.mulDiv(quote.effectiveSmallAreaPower, FIXED_DAILY_RATE_BPS, BPS),
+                Math.mulDiv(rewardedSmallAreaPower, FIXED_DAILY_RATE_BPS, BPS),
                 COMMUNITY_RATE_BPS,
                 BPS
             );

@@ -25,7 +25,7 @@ The proxy separates permissions:
 - Oracle keeper: `0x3bEacEd5Ad0806F3536cdCcA82625309D5CF6F4A`
 - Rolling Oracle upgrade: `2026-07-17 18:07:31 CST`
 - Mining proxy: `0x7C7C849734ea94a590266F90B5fD63D555ed3ca3`
-- Mining implementation: `0x671dd78E4E23A58F16e549F5380cB4a055ad1578`
+- Mining implementation: `0xCEA0Eb1C34Bb5937753ad764d9671E5206de3DC7`
 - Mining ProxyAdmin: `0x22FA01523a7b681F09ed181fBB2A096d2Ca5Cb56`
 - DApp: `https://gpcstaking.github.io/`
 

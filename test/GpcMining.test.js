@@ -179,6 +179,46 @@ describe('GpcMiningCore', function () {
     expect((await mining.users(alice.address)).power).to.equal(e('1.99475'));
   });
 
+  it('burns the entire community reward when effective small-area power is below the small area', async function () {
+    const { signers, operation, alice, oracle, mining, bindAndOrder } = await loadFixture(deployFixture);
+
+    await bindAndOrder(alice, operation);
+    for (const child of signers.slice(3, 10)) {
+      await bindAndOrder(child, alice);
+    }
+    await oracle.setPrices(e('0.1'), e('500'));
+
+    const community = await mining.communityPower(alice.address);
+    expect(community.total).to.equal(e('14'));
+    expect(community.largestBranchPower).to.equal(e('2'));
+    expect(community.smallArea).to.equal(e('12'));
+    expect(community.effectiveSmallArea).to.equal(e('10'));
+
+    const quote = await mining.quoteRewards(alice.address);
+    expect(quote.poolLimitedMode).to.equal(false);
+    expect(quote.staticRewardUsdt).to.equal(e('0.005'));
+    expect(quote.communityRewardUsdt).to.equal(0);
+    expect(quote.totalRewardUsdt).to.equal(e('0.005'));
+  });
+
+  it('pays the community reward when effective small-area power covers the full small area', async function () {
+    const { signers, operation, alice, oracle, mining, bindAndOrder } = await loadFixture(deployFixture);
+
+    await bindAndOrder(alice, operation);
+    for (const child of signers.slice(3, 9)) {
+      await bindAndOrder(child, alice);
+    }
+    await oracle.setPrices(e('0.1'), e('500'));
+
+    const community = await mining.communityPower(alice.address);
+    expect(community.smallArea).to.equal(e('10'));
+    expect(community.effectiveSmallArea).to.equal(e('10'));
+
+    const quote = await mining.quoteRewards(alice.address);
+    expect(quote.communityRewardUsdt).to.equal(e('0.00125'));
+    expect(quote.totalRewardUsdt).to.equal(e('0.00625'));
+  });
+
   it('uses the 1% pool formula below the threshold and allows exactly 1% of the pool', async function () {
     const { operation, alice, gpc, oracle, gpcPair, mining, bindAndOrder } = await loadFixture(deployFixture);
 

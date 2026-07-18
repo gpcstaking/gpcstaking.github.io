@@ -28,18 +28,18 @@ Before either swap, current GPC/USDT and WBNB/USDT reserve prices are compared w
 When `poolValue × 20 / totalPower < 5`:
 
 - Static: `1% × poolValue × personalPower / totalPower`
-- Community: `1% × poolValue × effectiveSmallArea / totalPower × 5%`
+- Community, only when `effectiveSmallArea >= smallArea`: `1% × poolValue × effectiveSmallArea / totalPower × 5%`
 
 Otherwise:
 
 - Static: `personalPower × 0.25%`
-- Community: `effectiveSmallArea × 0.25% × 5%`
+- Community, only when `effectiveSmallArea >= smallArea`: `effectiveSmallArea × 0.25% × 5%`
 
 Static plus community rewards are capped at 0.5% of current personal power. The paid USDT-value reward is deducted from personal power and converted to GPC using the six-hour TWAP.
 
 ## Community and risk controls
 
-For each user, the largest direct referral branch is removed. All other branch power is the small area. Effective small-area power is `min(smallArea, personalPower × 5)`. Referral depth is limited to 30.
+For each user, the largest direct referral branch is removed. All other branch power is the small area. Effective small-area power is `min(smallArea, personalPower × 5)`. If effective small-area power is lower than the complete small area, the entire community reward is burned and the community reward is zero. A community reward is paid only when effective small-area power covers the complete small area. Referral depth is limited to 30.
 
 Withdrawals are available once per 24 hours and never accrue missed days. A new order resets only the 24-hour timer. Gross GPC above 1% of the accounted mining pool reverts the entire withdrawal. Aggregate gross withdrawals are additionally capped at 5% of the mining-pool balance captured at the start of each 24-hour global window. A 10% GPC fee goes to the operation wallet.
 
