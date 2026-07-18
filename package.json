@@ -12,6 +12,8 @@
     "upgrade:oracle": "hardhat run scripts/upgrade-oracle-direct.js --network bsc",
     "update:oracle": "hardhat run scripts/update-oracle.js --network bsc",
     "deploy:mining": "hardhat run scripts/deploy-mining.js --network bsc",
+    "deploy:history": "hardhat run scripts/deploy-history-registry.js --network bsc",
+    "migrate:history": "hardhat run scripts/migrate-history.js --network bsc",
     "prepare-upgrade:mining": "hardhat run scripts/prepare-upgrade-mining.js --network bsc",
     "upgrade:mining": "hardhat run scripts/upgrade-mining-direct.js --network bsc"
   },

@@ -12,6 +12,7 @@ import {IGpcPriceOracle} from './interfaces/IGpcPriceOracle.sol';
 import {IPancakeFactory} from './interfaces/IPancakeFactory.sol';
 import {IPancakePair} from './interfaces/IPancakePair.sol';
 import {IPancakeRouterV2} from './interfaces/IPancakeRouterV2.sol';
+import {IGpcHistoryRegistry} from './interfaces/IGpcHistoryRegistry.sol';
 
 /**
  * @title GpcMiningCore
@@ -48,6 +49,11 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     uint256 public constant MAX_REFERRAL_DEPTH = 30;
     uint256 public constant MAX_EXPIRE_BATCH = 50;
     uint256 public constant MAX_AUTO_EXPIRE_BATCH = 20;
+    uint8 private constant POWER_HISTORY_ORDER = 1;
+    uint8 private constant POWER_HISTORY_WITHDRAW = 2;
+    uint8 private constant POWER_HISTORY_EXPIRED = 3;
+    uint8 private constant QUOTA_HISTORY_ORDER = 1;
+    uint8 private constant QUOTA_HISTORY_REFERRAL = 2;
 
     struct UserInfo {
         uint256 power;
@@ -118,8 +124,10 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     // displayed "today" and the project's primary operating timezone.
     mapping(address => DailyCommunityEarnings) public dailyCommunityEarnings;
 
+    IGpcHistoryRegistry public historyRegistry;
+
     // Reserved storage slots for future implementation upgrades.
-    uint256[32] private __gap;
+    uint256[31] private __gap;
 
     event ReferralBound(address indexed user, address indexed parent, uint256 depth);
     event OrderPlaced(
@@ -147,6 +155,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     event ExpiryBatchProcessed(uint256 checked, uint256 expired, uint256 nextExpiryAt);
     event TeamNodeAccounted(address indexed user, address indexed parent);
     event WbnbRemainderSentToOperation(uint256 amount);
+    event HistoryTrackingInitialized(address indexed registry);
 
     error ZeroAddress();
     error AlreadyBound();
@@ -216,6 +225,12 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         IERC20(wbnb_).safeApprove(router_, type(uint256).max);
 
         _transferOwnership(governanceOwner_);
+    }
+
+    function initializeHistoryTracking(address registry) external reinitializer(2) {
+        if (registry == address(0) || registry.code.length == 0) revert ZeroAddress();
+        historyRegistry = IGpcHistoryRegistry(registry);
+        emit HistoryTrackingInitialized(registry);
     }
 
     function bindReferral(address parent) external whenNotPaused {
@@ -306,6 +321,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
             UserInfo storage parentInfo = users[parent];
             if (parentInfo.promotionQuota >= DIRECT_REWARD) {
                 parentInfo.promotionQuota -= DIRECT_REWARD;
+                _appendQuotaHistory(parent, DIRECT_REWARD, QUOTA_HISTORY_REFERRAL);
                 rewardRecipient = parent;
             }
         }
@@ -351,6 +367,8 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         _increasePower(msg.sender, POWER_PER_ORDER);
         user.totalPowerPurchased += POWER_PER_ORDER;
         user.promotionQuota += PROMOTION_QUOTA_PER_ORDER;
+        _appendPowerHistory(msg.sender, POWER_PER_ORDER, POWER_HISTORY_ORDER);
+        _appendQuotaHistory(msg.sender, PROMOTION_QUOTA_PER_ORDER, QUOTA_HISTORY_ORDER);
         user.nextWithdrawAt = uint64(block.timestamp + WITHDRAW_COOLDOWN);
         if (user.inactivityStartedAt == 0) {
             user.inactivityStartedAt = uint64(block.timestamp);
@@ -391,6 +409,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         user.nextWithdrawAt = uint64(block.timestamp + WITHDRAW_COOLDOWN);
         user.inactivityStartedAt = uint64(block.timestamp);
         _decreasePower(msg.sender, quote.totalRewardUsdt);
+        _appendPowerHistory(msg.sender, quote.totalRewardUsdt, POWER_HISTORY_WITHDRAW);
         if (user.power == 0) {
             user.nextWithdrawAt = 0;
             user.inactivityStartedAt = 0;
@@ -686,6 +705,16 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         quote.grossGpc = Math.mulDiv(quote.totalRewardUsdt, 1 ether, quote.gpcPrice);
     }
 
+    function _appendPowerHistory(address account, uint256 amount, uint8 kind) internal {
+        IGpcHistoryRegistry registry = historyRegistry;
+        if (address(registry) != address(0)) registry.appendPower(account, amount, kind);
+    }
+
+    function _appendQuotaHistory(address account, uint256 amount, uint8 kind) internal {
+        IGpcHistoryRegistry registry = historyRegistry;
+        if (address(registry) != address(0)) registry.appendQuota(account, amount, kind);
+    }
+
     function _recordCommunityEarnings(address account, uint256 rewardUsdt) internal {
         if (rewardUsdt == 0) return;
 
@@ -767,6 +796,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         UserInfo storage user = users[account];
         uint256 expiredPower = user.power;
         _decreasePower(account, expiredPower);
+        _appendPowerHistory(account, expiredPower, POWER_HISTORY_EXPIRED);
         user.nextWithdrawAt = 0;
         user.inactivityStartedAt = 0;
         _removeExpiryUser(account);

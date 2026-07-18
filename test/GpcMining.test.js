@@ -53,6 +53,12 @@ describe('GpcMiningCore', function () {
     );
     await mining.waitForDeployment();
 
+    const History = await ethers.getContractFactory('GpcHistoryRegistry');
+    const history = await History.deploy();
+    await history.waitForDeployment();
+    await history.setWriter(mining.target);
+    await mining.initializeHistoryTracking(history.target);
+
     for (const signer of signers.slice(2, 12)) {
       await usdt.mint(signer.address, e('20000'));
       await usdt.connect(signer).approve(mining.target, ethers.MaxUint256);
@@ -79,6 +85,7 @@ describe('GpcMiningCore', function () {
       gpcPair,
       usdtPair,
       mining,
+      history,
       bindAndOrder
     };
   }
@@ -181,7 +188,7 @@ describe('GpcMiningCore', function () {
   });
 
   it('calculates test-stage fixed static and small-area rewards without level differences', async function () {
-    const { operation, alice, bob, carol, gpc, oracle, mining, bindAndOrder } = await loadFixture(deployFixture);
+    const { operation, alice, bob, carol, gpc, oracle, mining, history, bindAndOrder } = await loadFixture(deployFixture);
 
     await bindAndOrder(alice, operation);
     await bindAndOrder(bob, alice);
@@ -211,8 +218,74 @@ describe('GpcMiningCore', function () {
     expect(storedCommunityEarnings.rewardUsdt).to.equal(e('0.00025'));
     expect(storedCommunityEarnings.day).to.be.greaterThan(0);
 
+    const [powerHistory, powerHistoryTotal] = await history.powerHistory(alice.address, 0, 30);
+    expect(powerHistoryTotal).to.equal(2);
+    expect(powerHistory[0].kind).to.equal(await history.POWER_HISTORY_WITHDRAW());
+    expect(powerHistory[0].amount).to.equal(e('0.00525'));
+    expect(powerHistory[1].kind).to.equal(await history.POWER_HISTORY_ORDER());
+    expect(powerHistory[1].amount).to.equal(e('2'));
+
+    const [quotaHistory, quotaHistoryTotal] = await history.promotionQuotaHistory(alice.address, 0, 30);
+    expect(quotaHistoryTotal).to.equal(3);
+    expect(quotaHistory.map(record => record.kind)).to.deep.equal([2n, 2n, 1n]);
+    expect(quotaHistory.map(record => record.amount)).to.deep.equal([e('0.2'), e('0.2'), e('1')]);
+
     await time.increase(24 * 60 * 60);
     expect(await mining.communityClaimedToday(alice.address)).to.equal(0);
+  });
+
+  it('migrates pre-upgrade histories once and serves them newest first', async function () {
+    const { deployer, alice, history } = await loadFixture(deployFixture);
+    const startedAt = await history.trackingStartedAt();
+    const firstTimestamp = startedAt - 2n;
+    const secondTimestamp = startedAt - 1n;
+
+    await expect(history.connect(deployer).migrateHistories(
+      alice.address,
+      [[e('2'), firstTimestamp, 1]],
+      [[e('1'), firstTimestamp, 1], [e('0.2'), secondTimestamp, 2]]
+    )).to.emit(history, 'HistoryMigrated').withArgs(alice.address, 1, 2);
+
+    const [powerRecords, powerTotal] = await history.powerHistory(alice.address, 0, 30);
+    expect(powerTotal).to.equal(1);
+    expect(powerRecords[0].amount).to.equal(e('2'));
+    expect(powerRecords[0].timestamp).to.equal(firstTimestamp);
+
+    const [quotaRecords, quotaTotal] = await history.promotionQuotaHistory(alice.address, 0, 30);
+    expect(quotaTotal).to.equal(2);
+    expect(quotaRecords[0].amount).to.equal(e('0.2'));
+    expect(quotaRecords[1].amount).to.equal(e('1'));
+    await expect(history.connect(deployer).migrateHistories(alice.address, [], []))
+      .to.be.revertedWithCustomError(history, 'HistoryAlreadyMigrated');
+  });
+
+  it('keeps only the latest 30 packed history records', async function () {
+    const { operation, alice, mining, history, bindAndOrder } = await loadFixture(deployFixture);
+    await bindAndOrder(alice, operation);
+    const firstOrder = (await history.powerHistory(alice.address, 0, 1))[0][0];
+
+    for (let i = 1; i < 31; ++i) {
+      await time.increase(61);
+      await mining.connect(alice).placeOrder(...orderArgs((await time.latest()) + 300));
+    }
+
+    const [powerRecords, powerTotal] = await history.powerHistory(alice.address, 0, 30);
+    const [quotaRecords, quotaTotal] = await history.promotionQuotaHistory(alice.address, 0, 30);
+    expect(powerTotal).to.equal(30);
+    expect(quotaTotal).to.equal(30);
+    expect(powerRecords).to.have.length(30);
+    expect(quotaRecords).to.have.length(30);
+    expect(powerRecords[29].timestamp).to.be.greaterThan(firstOrder.timestamp);
+    expect(powerRecords.every(record => record.kind === 1n)).to.equal(true);
+    expect(quotaRecords.every(record => record.kind === 1n)).to.equal(true);
+  });
+
+  it('only lets the configured mining proxy append live history', async function () {
+    const { alice, history } = await loadFixture(deployFixture);
+    await expect(history.connect(alice).appendPower(alice.address, e('2'), 1))
+      .to.be.revertedWithCustomError(history, 'UnauthorizedWriter');
+    await expect(history.connect(alice).setWriter(alice.address))
+      .to.be.revertedWith('Ownable: caller is not the owner');
   });
 
   it('burns the entire community reward when effective small-area power is below the small area', async function () {

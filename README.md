@@ -26,7 +26,8 @@ The proxy separates permissions:
 - Oracle keeper service: Cloudflare Worker `gpc-oracle-keeper`, checking once per minute and writing only when the five-minute observation is due
 - Rolling Oracle upgrade: `2026-07-17 18:07:31 CST`
 - Mining proxy: `0x7C7C849734ea94a590266F90B5fD63D555ed3ca3`
-- Mining implementation: `0x2a79F5cEf12Fab27752cB3D1167840e56FC50232`
+- Mining implementation: `0x2b4AB2684c2a3878CD2cF6b9a1FB7B73797e0569`
+- On-chain history registry: `0x8d3ed404778b2477ca76e0a6E10820C175925D09`
 - Mining ProxyAdmin: `0x22FA01523a7b681F09ed181fBB2A096d2Ca5Cb56`
 - DApp: `https://gpcstaking.github.io/`
 
@@ -70,4 +71,4 @@ Unit tests and TWAP manipulation bounds are present, but this code has not recei
 
 ## DApp
 
-The mobile wallet interface is under `frontend/`. Copy `frontend/.env.example` to `frontend/.env.local` and set `NEXT_PUBLIC_MINING_ADDRESS` to the deployed **proxy address**. The interface supports BSC wallet switching, mandatory first-entry referral binding, exact test-stage 1 USDT approval, pre-signing Pancake quotes, user minimum outputs, GPC staking, reward quotes, community statistics, and withdrawals.
+The mobile wallet interface is under `frontend/`. Copy `frontend/.env.example` to `frontend/.env.local` and set `NEXT_PUBLIC_MINING_ADDRESS` to the deployed **proxy address**. The interface supports BSC wallet switching, mandatory first-entry referral binding, exact test-stage 1 USDT approval, pre-signing Pancake quotes, user minimum outputs, GPC staking, reward quotes, community statistics, and withdrawals. Personal-power and promotion-quota details are read directly from the separate on-chain history registry, which keeps the latest 30 packed records for each ledger and avoids archive-event RPC scans.

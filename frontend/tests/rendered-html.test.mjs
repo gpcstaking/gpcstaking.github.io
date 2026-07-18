@@ -70,9 +70,11 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /增减记录/);
   assert.match(source, /openLedger\("power"\)/);
   assert.match(source, /openLedger\("promotionQuota"\)/);
-  assert.match(source, /event OrderPlaced/);
   assert.match(source, /event Withdrawn/);
-  assert.match(source, /event PowerExpired/);
+  assert.match(source, /function historyRegistry\(\)/);
+  assert.match(source, /function powerHistory\(address account/);
+  assert.match(source, /function promotionQuotaHistory\(address account/);
+  assert.doesNotMatch(source, /getLogsInRanges\(HISTORY_PROVIDER, \[orderTopic/);
   assert.match(source, /质押增加/);
   assert.match(source, /领取收益消耗/);
   assert.match(source, /180 天未提现清零/);

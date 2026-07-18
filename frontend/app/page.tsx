@@ -32,15 +32,14 @@ const MINING_ABI = [
   "function largestBranch(address) view returns (address branch,uint256 power)",
   "function teamNodeCount(address) view returns (uint256)",
   "function communityClaimedToday(address) view returns (uint256)",
+  "function historyRegistry() view returns (address)",
   "function quoteRewards(address) view returns ((uint256 staticRewardUsdt,uint256 communityRewardUsdt,uint256 totalRewardUsdt,uint256 grossGpc,uint256 gpcPrice,uint256 poolValueUsdt,uint256 smallAreaPower,uint256 effectiveSmallAreaPower,bool poolLimitedMode))",
   "function oracle() view returns (address)",
   "function bindReferral(address parent)",
   "function router() view returns (address)",
   "function placeOrder(uint256 deadline,uint256 userMinGpcOut,uint256 userMinWbnbOut,uint256 userMinLpGpc,uint256 userMinLpWbnb)",
   "function withdraw()",
-  "event OrderPlaced(address indexed user,address indexed parent,address indexed directRewardRecipient,uint256 gpcBought,uint256 gpcAddedToPool,uint256 gpcAddedToLp,uint256 wbnbAddedToLp,uint256 liquidity)",
   "event Withdrawn(address indexed user,uint256 staticRewardUsdt,uint256 communityRewardUsdt,uint256 powerBurned,uint256 grossGpc,uint256 feeGpc,uint256 netGpc,uint256 gpcPrice)",
-  "event PowerExpired(address indexed user,uint256 powerBurned,uint256 timestamp)",
   "error RootCannotOrder()",
   "error ReferralRequired()",
   "error OrderCooldownActive()",
@@ -48,6 +47,11 @@ const MINING_ABI = [
   "error OraclePriceInvalid()",
   "error SpotTwapDeviationTooHigh(address asset,uint256 spotPrice,uint256 twapPrice)",
   "error SwapOutputTooLow()",
+];
+
+const HISTORY_ABI = [
+  "function powerHistory(address account,uint256 offset,uint256 limit) view returns ((uint256 amount,uint64 timestamp,uint8 kind)[] records,uint256 total)",
+  "function promotionQuotaHistory(address account,uint256 offset,uint256 limit) view returns ((uint256 amount,uint64 timestamp,uint8 kind)[] records,uint256 total)",
 ];
 
 const ORACLE_ABI = [
@@ -70,9 +74,6 @@ const GPC_SWAP_AMOUNT = 7n * 10n ** 17n;
 const WBNB_SWAP_AMOUNT = 5n * 10n ** 16n;
 const BPS = 10_000n;
 const MINING_DEPLOYMENT_BLOCK = 110_493_189;
-const POWER_PER_ORDER = 2n * 10n ** 18n;
-const PROMOTION_QUOTA_PER_ORDER = 1n * 10n ** 18n;
-const DIRECT_REWARD = 2n * 10n ** 17n;
 const LOG_QUERY_BLOCK_SPAN = 50_000;
 const HISTORY_PROVIDER = new JsonRpcProvider("https://bsc.rpc.blxrbdn.com", 56, { staticNetwork: true, batchMaxCount: 1 });
 const USER_SWAP_SLIPPAGE_BPS = 50n; // 0.5% from the pre-signing router quote
@@ -112,9 +113,6 @@ type AppTab = "home" | "order" | "team" | "ecosystem";
 type LedgerKind = "power" | "promotionQuota";
 type LedgerEntry = {
   id: string;
-  blockNumber: number;
-  logIndex: number;
-  transactionHash: string;
   timestamp: number;
   direction: "increase" | "decrease";
   amount: bigint;
@@ -379,56 +377,35 @@ export default function Home() {
 
     setLedgerLoading(true);
     try {
-      const latestBlock = await HISTORY_PROVIDER.getBlockNumber();
-      const accountTopic = zeroPadValue(account, 32);
-      const orderTopic = MINING_INTERFACE.getEvent("OrderPlaced")!.topicHash;
-      const withdrawTopic = MINING_INTERFACE.getEvent("Withdrawn")!.topicHash;
-      const expiredTopic = MINING_INTERFACE.getEvent("PowerExpired")!.topicHash;
-      const entries: LedgerEntry[] = [];
+      const mining = new Contract(MINING_ADDRESS, MINING_ABI, provider);
+      const registryAddress = String(await mining.historyRegistry());
+      if (!isAddress(registryAddress) || registryAddress === ZERO_ADDRESS) throw new Error("History registry unavailable");
 
-      if (kind === "power") {
-        const [orders, withdrawals, expirations] = await Promise.all([
-          getLogsInRanges(HISTORY_PROVIDER, [orderTopic, accountTopic], latestBlock),
-          getLogsInRanges(HISTORY_PROVIDER, [withdrawTopic, accountTopic], latestBlock),
-          getLogsInRanges(HISTORY_PROVIDER, [expiredTopic, accountTopic], latestBlock),
-        ]);
-
-        for (const log of orders) {
-          entries.push({ id: `${log.transactionHash}-${log.index}`, blockNumber: log.blockNumber, logIndex: log.index, transactionHash: log.transactionHash, timestamp: 0, direction: "increase", amount: POWER_PER_ORDER, label: { zh: "质押增加", en: "Added by staking" } });
-        }
-        for (const log of withdrawals) {
-          const parsed = MINING_INTERFACE.parseLog(log);
-          if (!parsed) continue;
-          entries.push({ id: `${log.transactionHash}-${log.index}`, blockNumber: log.blockNumber, logIndex: log.index, transactionHash: log.transactionHash, timestamp: 0, direction: "decrease", amount: parsed.args.powerBurned as bigint, label: { zh: "领取收益消耗", en: "Used to claim rewards" } });
-        }
-        for (const log of expirations) {
-          const parsed = MINING_INTERFACE.parseLog(log);
-          if (!parsed) continue;
-          entries.push({ id: `${log.transactionHash}-${log.index}`, blockNumber: log.blockNumber, logIndex: log.index, transactionHash: log.transactionHash, timestamp: Number(parsed.args.timestamp), direction: "decrease", amount: parsed.args.powerBurned as bigint, label: { zh: "180 天未提现清零", en: "Expired after 180 days" } });
-        }
-      } else {
-        const [orders, directRewards] = await Promise.all([
-          getLogsInRanges(HISTORY_PROVIDER, [orderTopic, accountTopic], latestBlock),
-          getLogsInRanges(HISTORY_PROVIDER, [orderTopic, null, null, accountTopic], latestBlock),
-        ]);
-
-        for (const log of orders) {
-          entries.push({ id: `${log.transactionHash}-${log.index}-increase`, blockNumber: log.blockNumber, logIndex: log.index, transactionHash: log.transactionHash, timestamp: 0, direction: "increase", amount: PROMOTION_QUOTA_PER_ORDER, label: { zh: "质押增加", en: "Added by staking" } });
-        }
-        for (const log of directRewards) {
-          const parsed = MINING_INTERFACE.parseLog(log);
-          if (!parsed || String(parsed.args.parent).toLowerCase() !== account.toLowerCase()) continue;
-          entries.push({ id: `${log.transactionHash}-${log.index}-decrease`, blockNumber: log.blockNumber, logIndex: log.index, transactionHash: log.transactionHash, timestamp: 0, direction: "decrease", amount: DIRECT_REWARD, label: { zh: "直推奖励消耗", en: "Used for direct referral reward" } });
-        }
-      }
-
-      const missingTimestampBlocks = [...new Set(entries.filter(entry => entry.timestamp === 0).map(entry => entry.blockNumber))];
-      const blocks = await Promise.all(missingTimestampBlocks.map(blockNumber => HISTORY_PROVIDER.getBlock(blockNumber)));
-      const blockTimestamps = new Map(blocks.filter(Boolean).map(block => [block!.number, block!.timestamp]));
-      const completedEntries = entries
-        .map(entry => ({ ...entry, timestamp: entry.timestamp || blockTimestamps.get(entry.blockNumber) || 0 }))
-        .sort((a, b) => b.blockNumber - a.blockNumber || b.logIndex - a.logIndex);
-      setLedgerEntries(completedEntries);
+      const registry = new Contract(registryAddress, HISTORY_ABI, provider);
+      const result = kind === "power"
+        ? await registry.powerHistory(account, 0, 30)
+        : await registry.promotionQuotaHistory(account, 0, 30);
+      const records = result.records as Array<{ amount: bigint; timestamp: bigint; kind: bigint }>;
+      const entries = records.map((record, index): LedgerEntry => {
+        const recordKind = Number(record.kind);
+        const powerLabels: Record<number, LocalizedStatus> = {
+          1: { zh: "质押增加", en: "Added by staking" },
+          2: { zh: "领取收益消耗", en: "Used to claim rewards" },
+          3: { zh: "180 天未提现清零", en: "Expired after 180 days" },
+        };
+        const quotaLabels: Record<number, LocalizedStatus> = {
+          1: { zh: "质押增加", en: "Added by staking" },
+          2: { zh: "直推奖励消耗", en: "Used for direct referral reward" },
+        };
+        return {
+          id: `${record.timestamp}-${recordKind}-${index}`,
+          timestamp: Number(record.timestamp),
+          direction: recordKind === 1 ? "increase" : "decrease",
+          amount: record.amount,
+          label: (kind === "power" ? powerLabels : quotaLabels)[recordKind] ?? { zh: "链上变更", en: "On-chain change" },
+        };
+      });
+      setLedgerEntries(entries);
     } catch {
       setLedgerError({ zh: "链上明细读取失败，请稍后重试", en: "Unable to load on-chain history. Try again shortly." });
     } finally {
@@ -748,7 +725,7 @@ export default function Home() {
                 {ledgerEntries.map(entry => (
                   <article className="ledger-row" key={entry.id}>
                     <span className={`ledger-direction ${entry.direction}`}>{entry.direction === "increase" ? "+" : "−"}</span>
-                    <div className="ledger-entry-info"><strong>{entry.label[language]}</strong><small>{entry.timestamp ? formatLedgerTime(entry.timestamp, language) : text("时间读取中", "Loading time")}</small><small>{text("交易", "Tx")} {shortAddress(entry.transactionHash)}</small></div>
+                    <div className="ledger-entry-info"><strong>{entry.label[language]}</strong><small>{entry.timestamp ? formatLedgerTime(entry.timestamp, language) : text("时间读取中", "Loading time")}</small><small>{text("链上存储记录", "On-chain stored record")}</small></div>
                     <div className={`ledger-amount ${entry.direction}`}><strong>{entry.direction === "increase" ? "+" : "−"}{compact(entry.amount, language, 4)}</strong><small>{ledgerKind === "power" ? "POWER" : "U"}</small></div>
                   </article>
                 ))}
