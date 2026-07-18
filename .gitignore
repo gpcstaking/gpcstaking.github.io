@@ -8,3 +8,5 @@ typechain-types/
 .DS_Store
 frontend/pages-dist/
 frontend/gpc-*-preview.jpg
+keeper-worker/.dev.vars
+keeper-worker/dist/

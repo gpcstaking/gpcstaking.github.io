@@ -23,6 +23,7 @@ The proxy separates permissions:
 - Oracle implementation: `0x17C2DBa615C4e43074eeA98Ea6FFCeA62C599747`
 - Oracle ProxyAdmin: `0xcCbde183E2D5c945500CF19CFa3EFd31b877611C`
 - Oracle keeper: `0x3bEacEd5Ad0806F3536cdCcA82625309D5CF6F4A`
+- Oracle keeper service: Cloudflare Worker `gpc-oracle-keeper`, checking once per minute and writing only when the five-minute observation is due
 - Rolling Oracle upgrade: `2026-07-17 18:07:31 CST`
 - Mining proxy: `0x7C7C849734ea94a590266F90B5fD63D555ed3ca3`
 - Mining implementation: `0xCEA0Eb1C34Bb5937753ad764d9671E5206de3DC7`
@@ -61,7 +62,7 @@ Copy `.env.example` to an untracked `.env`. Set `PRIVATE_KEY`, `BSC_RPC_URL`, `B
 
 Never reorder, remove, or change the type of existing storage fields. New mining fields must consume slots from `GpcMiningCore.__gap`; new oracle fields must consume slots from `GpcSixHourOracle.__gap`.
 
-The rolling oracle must receive a permissionless `update()` transaction once every five minutes. It stores 74 cumulative-price observations. Every price read appends the current Pancake cumulative price in memory and calculates the TWAP for the six hours immediately preceding the current block, so a transaction is not held to the last five-minute keeper snapshot. During warm-up it uses all available history as a partial TWAP; when no elapsed observation exists yet, it falls back to the current two-pair spot price. The oracle tolerates short public-keeper scheduling delays and becomes stale after thirty minutes without a keeper point. Withdrawals require both a fresh Oracle price and current spot prices within the configured deviation. Aggregate withdrawals are capped at 5% of the window-opening mining pool per 24-hour window. See [TOKENOMICS.md](./TOKENOMICS.md) for the exact formulas and operational rules.
+The rolling oracle must receive a permissionless `update()` transaction once every five minutes. The Cloudflare Worker under `keeper-worker/` checks once per minute, reads `nextUpdateAt()`, and sends a transaction only when an observation is due. It uses the dedicated gas-only keeper wallet, a 1 gwei gas-price ceiling, RPC failover, and Cloudflare Secret storage. GitHub Actions remains a backup. The oracle stores 74 cumulative-price observations. Every price read appends the current Pancake cumulative price in memory and calculates the TWAP for the six hours immediately preceding the current block, so a transaction is not held to the last five-minute keeper snapshot. During warm-up it uses all available history as a partial TWAP; when no elapsed observation exists yet, it falls back to the current two-pair spot price. The oracle tolerates short public-keeper scheduling delays and becomes stale after thirty minutes without a keeper point. Withdrawals require both a fresh Oracle price and current spot prices within the configured deviation. Aggregate withdrawals are capped at 5% of the window-opening mining pool per 24-hour window. See [TOKENOMICS.md](./TOKENOMICS.md) for the exact formulas and operational rules.
 
 ## Security status
 

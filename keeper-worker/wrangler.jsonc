@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "gpc-oracle-keeper",
+  "main": "src/index.js",
+  "compatibility_date": "2026-07-18",
+  "workers_dev": false,
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "ORACLE_ADDRESS": "0x7c7CdA7C435776815606879390523c6486C0b0fB",
+    "MAX_GAS_PRICE_GWEI": "1",
+    "KEEPER_ENABLED": "true"
+  }
+}
