@@ -580,7 +580,7 @@ export default function Home() {
             <div className="community-node-stats"><div><span>{text("直属节点数", "Direct nodes")}</span><strong>{formatCount(BigInt(snapshot.directReferrals.length), language)}</strong></div><div><span>{text("团队节点总数", "Total team nodes")}</span><strong>{formatCount(snapshot.teamNodeCount, language)}</strong></div></div>
             <div className="community-stats"><div><span>{text("小区总算力", "Total small-area power")}</span><strong>{compact(snapshot.smallArea, language)}</strong></div><div><span>{text("小区有效算力", "Effective small-area power")}</span><strong>{compact(snapshot.effectiveSmallArea, language)}</strong></div><div><span>{text("奖励状态", "Reward status")}</span><strong className={communityRewardBurned ? "burned" : "active"}>{snapshot.smallArea === 0n ? text("暂无", "None") : communityRewardBurned ? text("全部烧伤", "Burned") : text("已激活", "Active")}</strong></div></div>
             {isBound ? (
-              <a className="parent-row" href={`https://bscscan.com/address/${snapshot.parent}`} target="_blank" rel="noreferrer"><span>{text("我的上级", "My sponsor")}</span><strong>{shortAddress(snapshot.parent)}</strong><DappIcon name="chevron" size={16} /></a>
+              <div className="parent-row"><span>{text("我的上级", "My sponsor")}</span><strong>{shortAddress(snapshot.parent)}</strong></div>
             ) : (
               <div className="team-connect-note">{text("连接钱包后查看团队信息", "Connect your wallet to view team data")}</div>
             )}
@@ -595,12 +595,11 @@ export default function Home() {
                 {snapshot.directReferrals.map((referral, index) => {
                   const isLargestBranch = referral.branchPower > 0n && referral.address.toLowerCase() === snapshot.largestBranch.toLowerCase();
                   return (
-                  <a className="direct-referral-row" href={`https://bscscan.com/address/${referral.address}`} target="_blank" rel="noreferrer" key={referral.address}>
+                  <div className="direct-referral-row" key={referral.address}>
                     <span>{String(index + 1).padStart(2, "0")}</span>
                     <div className="direct-referral-info"><strong>{shortAddress(referral.address)}</strong><small className={isLargestBranch ? "major" : "minor"}>{isLargestBranch ? text("大区", "Major area") : text("小区", "Small area")}</small></div>
                     <div className="direct-referral-power"><span>{text("伞下算力", "Branch power")}</span><strong>{compact(referral.branchPower, language)}</strong></div>
-                    <DappIcon name="chevron" size={16} />
-                  </a>
+                  </div>
                   );
                 })}
               </div>
