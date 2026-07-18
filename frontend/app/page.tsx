@@ -5,7 +5,11 @@ import {
   BrowserProvider,
   Contract,
   formatEther,
+  Interface,
   isAddress,
+  JsonRpcProvider,
+  type Log,
+  zeroPadValue,
 } from "ethers";
 
 const viteEnv = import.meta.env as Record<string, string | undefined>;
@@ -32,6 +36,9 @@ const MINING_ABI = [
   "function router() view returns (address)",
   "function placeOrder(uint256 deadline,uint256 userMinGpcOut,uint256 userMinWbnbOut,uint256 userMinLpGpc,uint256 userMinLpWbnb)",
   "function withdraw()",
+  "event OrderPlaced(address indexed user,address indexed parent,address indexed directRewardRecipient,uint256 gpcBought,uint256 gpcAddedToPool,uint256 gpcAddedToLp,uint256 wbnbAddedToLp,uint256 liquidity)",
+  "event Withdrawn(address indexed user,uint256 staticRewardUsdt,uint256 communityRewardUsdt,uint256 powerBurned,uint256 grossGpc,uint256 feeGpc,uint256 netGpc,uint256 gpcPrice)",
+  "event PowerExpired(address indexed user,uint256 powerBurned,uint256 timestamp)",
   "error RootCannotOrder()",
   "error ReferralRequired()",
   "error OrderCooldownActive()",
@@ -60,6 +67,12 @@ const ORDER_AMOUNT = 1n * 10n ** 18n;
 const GPC_SWAP_AMOUNT = 7n * 10n ** 17n;
 const WBNB_SWAP_AMOUNT = 5n * 10n ** 16n;
 const BPS = 10_000n;
+const MINING_DEPLOYMENT_BLOCK = 110_493_189;
+const POWER_PER_ORDER = 2n * 10n ** 18n;
+const PROMOTION_QUOTA_PER_ORDER = 1n * 10n ** 18n;
+const DIRECT_REWARD = 2n * 10n ** 17n;
+const LOG_QUERY_BLOCK_SPAN = 50_000;
+const HISTORY_PROVIDER = new JsonRpcProvider("https://bsc.rpc.blxrbdn.com", 56, { staticNetwork: true, batchMaxCount: 1 });
 const USER_SWAP_SLIPPAGE_BPS = 50n; // 0.5% from the pre-signing router quote
 const LP_SLIPPAGE_BPS = 200n;
 const TRANSACTION_GAS_HEADROOM_BPS = 3_000n; // BSC estimation can underfund nested contract calls
@@ -88,8 +101,21 @@ type Snapshot = {
 };
 
 type AppTab = "home" | "order" | "team" | "profile";
+type LedgerKind = "power" | "promotionQuota";
+type LedgerEntry = {
+  id: string;
+  blockNumber: number;
+  logIndex: number;
+  transactionHash: string;
+  timestamp: number;
+  direction: "increase" | "decrease";
+  amount: bigint;
+  label: LocalizedStatus;
+};
 type Language = "zh" | "en";
 type LocalizedStatus = { zh: string; en: string };
+
+const MINING_INTERFACE = new Interface(MINING_ABI);
 
 const emptySnapshot: Snapshot = {
   power: 0n,
@@ -149,6 +175,38 @@ function formatTime(timestamp: number, language: Language) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(timestamp * 1000));
+}
+
+function formatLedgerTime(timestamp: number, language: Language) {
+  return new Intl.DateTimeFormat(language === "zh" ? "zh-CN" : "en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(timestamp * 1000));
+}
+
+async function getLogsInRanges(provider: JsonRpcProvider, topics: Array<string | null>, latestBlock: number) {
+  const getRange = async (fromBlock: number, toBlock: number): Promise<Log[]> => {
+    try {
+      return await provider.getLogs({ address: MINING_ADDRESS, fromBlock, toBlock, topics });
+    } catch (error) {
+      if (fromBlock >= toBlock) throw error;
+      const midpoint = Math.floor((fromBlock + toBlock) / 2);
+      const [left, right] = await Promise.all([
+        getRange(fromBlock, midpoint),
+        getRange(midpoint + 1, toBlock),
+      ]);
+      return [...left, ...right];
+    }
+  };
+
+  const logs: Log[] = [];
+  for (let fromBlock = MINING_DEPLOYMENT_BLOCK; fromBlock <= latestBlock; fromBlock += LOG_QUERY_BLOCK_SPAN) {
+    logs.push(...await getRange(fromBlock, Math.min(fromBlock + LOG_QUERY_BLOCK_SPAN - 1, latestBlock)));
+  }
+  return logs;
 }
 
 function errorDetails(error: unknown) {
@@ -225,6 +283,10 @@ export default function Home() {
   const [currentTime, setCurrentTime] = useState(0);
   const [activeTab, setActiveTab] = useState<AppTab>("home");
   const [language, setLanguage] = useState<Language>("zh");
+  const [ledgerKind, setLedgerKind] = useState<LedgerKind | null>(null);
+  const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([]);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [ledgerError, setLedgerError] = useState<LocalizedStatus | null>(null);
 
   const text = (zh: string, en: string) => language === "zh" ? zh : en;
 
@@ -254,6 +316,82 @@ export default function Home() {
     window.localStorage.setItem("gpc-language", nextLanguage);
   }
 
+  async function openLedger(kind: LedgerKind) {
+    setLedgerKind(kind);
+    setLedgerEntries([]);
+    setLedgerError(null);
+    window.scrollTo({ top: 0, behavior: "auto" });
+
+    if (!provider || !account) {
+      setLedgerError({ zh: "请先连接钱包后查看链上明细", en: "Connect your wallet to view on-chain history" });
+      return;
+    }
+
+    setLedgerLoading(true);
+    try {
+      const latestBlock = await HISTORY_PROVIDER.getBlockNumber();
+      const accountTopic = zeroPadValue(account, 32);
+      const orderTopic = MINING_INTERFACE.getEvent("OrderPlaced")!.topicHash;
+      const withdrawTopic = MINING_INTERFACE.getEvent("Withdrawn")!.topicHash;
+      const expiredTopic = MINING_INTERFACE.getEvent("PowerExpired")!.topicHash;
+      const entries: LedgerEntry[] = [];
+
+      if (kind === "power") {
+        const [orders, withdrawals, expirations] = await Promise.all([
+          getLogsInRanges(HISTORY_PROVIDER, [orderTopic, accountTopic], latestBlock),
+          getLogsInRanges(HISTORY_PROVIDER, [withdrawTopic, accountTopic], latestBlock),
+          getLogsInRanges(HISTORY_PROVIDER, [expiredTopic, accountTopic], latestBlock),
+        ]);
+
+        for (const log of orders) {
+          entries.push({ id: `${log.transactionHash}-${log.index}`, blockNumber: log.blockNumber, logIndex: log.index, transactionHash: log.transactionHash, timestamp: 0, direction: "increase", amount: POWER_PER_ORDER, label: { zh: "质押增加", en: "Added by staking" } });
+        }
+        for (const log of withdrawals) {
+          const parsed = MINING_INTERFACE.parseLog(log);
+          if (!parsed) continue;
+          entries.push({ id: `${log.transactionHash}-${log.index}`, blockNumber: log.blockNumber, logIndex: log.index, transactionHash: log.transactionHash, timestamp: 0, direction: "decrease", amount: parsed.args.powerBurned as bigint, label: { zh: "领取收益消耗", en: "Used to claim rewards" } });
+        }
+        for (const log of expirations) {
+          const parsed = MINING_INTERFACE.parseLog(log);
+          if (!parsed) continue;
+          entries.push({ id: `${log.transactionHash}-${log.index}`, blockNumber: log.blockNumber, logIndex: log.index, transactionHash: log.transactionHash, timestamp: Number(parsed.args.timestamp), direction: "decrease", amount: parsed.args.powerBurned as bigint, label: { zh: "180 天未提现清零", en: "Expired after 180 days" } });
+        }
+      } else {
+        const [orders, directRewards] = await Promise.all([
+          getLogsInRanges(HISTORY_PROVIDER, [orderTopic, accountTopic], latestBlock),
+          getLogsInRanges(HISTORY_PROVIDER, [orderTopic, null, null, accountTopic], latestBlock),
+        ]);
+
+        for (const log of orders) {
+          entries.push({ id: `${log.transactionHash}-${log.index}-increase`, blockNumber: log.blockNumber, logIndex: log.index, transactionHash: log.transactionHash, timestamp: 0, direction: "increase", amount: PROMOTION_QUOTA_PER_ORDER, label: { zh: "质押增加", en: "Added by staking" } });
+        }
+        for (const log of directRewards) {
+          const parsed = MINING_INTERFACE.parseLog(log);
+          if (!parsed || String(parsed.args.parent).toLowerCase() !== account.toLowerCase()) continue;
+          entries.push({ id: `${log.transactionHash}-${log.index}-decrease`, blockNumber: log.blockNumber, logIndex: log.index, transactionHash: log.transactionHash, timestamp: 0, direction: "decrease", amount: DIRECT_REWARD, label: { zh: "直推奖励消耗", en: "Used for direct referral reward" } });
+        }
+      }
+
+      const missingTimestampBlocks = [...new Set(entries.filter(entry => entry.timestamp === 0).map(entry => entry.blockNumber))];
+      const blocks = await Promise.all(missingTimestampBlocks.map(blockNumber => HISTORY_PROVIDER.getBlock(blockNumber)));
+      const blockTimestamps = new Map(blocks.filter(Boolean).map(block => [block!.number, block!.timestamp]));
+      const completedEntries = entries
+        .map(entry => ({ ...entry, timestamp: entry.timestamp || blockTimestamps.get(entry.blockNumber) || 0 }))
+        .sort((a, b) => b.blockNumber - a.blockNumber || b.logIndex - a.logIndex);
+      setLedgerEntries(completedEntries);
+    } catch {
+      setLedgerError({ zh: "链上明细读取失败，请稍后重试", en: "Unable to load on-chain history. Try again shortly." });
+    } finally {
+      setLedgerLoading(false);
+    }
+  }
+
+  function closeLedger() {
+    setLedgerKind(null);
+    setLedgerError(null);
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }
+
   useEffect(() => {
     const ethereum = window.ethereum;
     if (!ethereum?.on) return;
@@ -263,6 +401,9 @@ export default function Home() {
       setAccount("");
       setSnapshot(emptySnapshot);
       setCurrentTime(0);
+      setLedgerKind(null);
+      setLedgerEntries([]);
+      setLedgerError(null);
       setStatus({ zh: "钱包账户或网络已变更，请重新连接", en: "Wallet account or network changed. Please reconnect." });
     };
     ethereum.on("accountsChanged", invalidateSession);
@@ -511,6 +652,39 @@ export default function Home() {
           <button onClick={() => provider && account && refresh(provider, account)} disabled={!account || busy}><DappIcon name="refresh" size={14} /></button>
         </div>
 
+        {ledgerKind && (
+          <section className="ledger-page" role="dialog" aria-modal="true" aria-labelledby="ledger-title">
+            <header className="ledger-header">
+              <button onClick={closeLedger} aria-label={text("返回质押页面", "Back to staking")}><DappIcon name="chevron" size={18} /></button>
+              <div><small>ON-CHAIN RECORDS</small><h1 id="ledger-title">{ledgerKind === "power" ? text("个人算力明细", "Personal Power History") : text("推广额度明细", "Referral Quota History")}</h1></div>
+            </header>
+            <article className="ledger-balance-card">
+              <span>{text("当前余额", "Current balance")}</span>
+              <div><strong>{compact(ledgerKind === "power" ? snapshot.power : snapshot.promotionQuota, language)}</strong><small>{ledgerKind === "power" ? "POWER" : "U"}</small></div>
+              <p>{ledgerKind === "power" ? text("记录质押增加、提现消耗和到期清零", "Staking additions, claim usage, and expirations") : text("记录质押增加和直推奖励消耗", "Staking additions and direct referral usage")}</p>
+            </article>
+
+            <div className="ledger-list-heading"><strong>{text("增减记录", "Transactions")}</strong><span>{ledgerEntries.length}</span></div>
+            {ledgerLoading ? (
+              <div className="ledger-state"><span className="ledger-spinner" />{text("正在读取链上记录…", "Loading on-chain records…")}</div>
+            ) : ledgerError ? (
+              <div className="ledger-state ledger-error"><span>{ledgerError[language]}</span><button onClick={() => openLedger(ledgerKind)}>{text("重新读取", "Retry")}</button></div>
+            ) : ledgerEntries.length === 0 ? (
+              <div className="ledger-state">{text("暂无增减记录", "No transactions yet")}</div>
+            ) : (
+              <div className="ledger-list">
+                {ledgerEntries.map(entry => (
+                  <article className="ledger-row" key={entry.id}>
+                    <span className={`ledger-direction ${entry.direction}`}>{entry.direction === "increase" ? "+" : "−"}</span>
+                    <div className="ledger-entry-info"><strong>{entry.label[language]}</strong><small>{entry.timestamp ? formatLedgerTime(entry.timestamp, language) : text("时间读取中", "Loading time")}</small><small>{text("交易", "Tx")} {shortAddress(entry.transactionHash)}</small></div>
+                    <div className={`ledger-amount ${entry.direction}`}><strong>{entry.direction === "increase" ? "+" : "−"}{compact(entry.amount, language, 4)}</strong><small>{ledgerKind === "power" ? "POWER" : "U"}</small></div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
         <div className="tab-page" hidden={activeTab !== "home"}>
           <section className="balance-card" aria-label={text("今日收益", "Today's rewards")}>
             <div className="balance-topline">
@@ -567,7 +741,9 @@ export default function Home() {
             <div className="protect-note"><DappIcon name="shield" size={15} /><span>{text("5分钟观测 · 实时滚动6小时 · 不足6小时自动降级", "5-min observations · Live rolling 6H · Automatic fallback")}</span></div>
           </article>
           <article className="order-info-card">
-            <div><span>{text("质押间隔", "Stake interval")}</span><strong>{text("1 分钟", "1 minute")}</strong></div><div><span>{text("个人算力", "Personal power")}</span><strong>{compact(snapshot.power, language)}</strong></div><div><span>{text("推广额度", "Referral quota")}</span><strong>{compact(snapshot.promotionQuota, language)} U</strong></div>
+            <div><span>{text("质押间隔", "Stake interval")}</span><strong>{text("1 分钟", "1 minute")}</strong></div>
+            <button className="order-info-link" onClick={() => openLedger("power")} disabled={!account}><span>{text("个人算力", "Personal power")}</span><strong>{compact(snapshot.power, language)}</strong><DappIcon name="chevron" size={12} /></button>
+            <button className="order-info-link" onClick={() => openLedger("promotionQuota")} disabled={!account}><span>{text("推广额度", "Referral quota")}</span><strong>{compact(snapshot.promotionQuota, language)} U</strong><DappIcon name="chevron" size={12} /></button>
           </article>
         </div>
 

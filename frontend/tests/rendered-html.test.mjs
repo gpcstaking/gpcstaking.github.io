@@ -54,6 +54,18 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /teamNodeCount\(address\)/);
   assert.match(source, /直属节点数/);
   assert.match(source, /团队节点总数/);
+  assert.match(source, /个人算力明细/);
+  assert.match(source, /推广额度明细/);
+  assert.match(source, /增减记录/);
+  assert.match(source, /openLedger\("power"\)/);
+  assert.match(source, /openLedger\("promotionQuota"\)/);
+  assert.match(source, /event OrderPlaced/);
+  assert.match(source, /event Withdrawn/);
+  assert.match(source, /event PowerExpired/);
+  assert.match(source, /质押增加/);
+  assert.match(source, /领取收益消耗/);
+  assert.match(source, /180 天未提现清零/);
+  assert.match(source, /直推奖励消耗/);
   assert.doesNotMatch(source, /bscscan\.com\/address\/\$\{snapshot\.parent\}/);
   assert.doesNotMatch(source, /bscscan\.com\/address\/\$\{referral\.address\}/);
   assert.match(source, /<div className="parent-row">/);
