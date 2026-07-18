@@ -227,7 +227,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         _transferOwnership(governanceOwner_);
     }
 
-    function initializeHistoryTracking(address registry) external reinitializer(2) {
+    function initializeHistoryTracking(address registry) external reinitializer(3) {
         if (registry == address(0) || registry.code.length == 0) revert ZeroAddress();
         historyRegistry = IGpcHistoryRegistry(registry);
         emit HistoryTrackingInitialized(registry);

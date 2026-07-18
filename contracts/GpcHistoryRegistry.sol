@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.21;
 
-import {Ownable} from '@openzeppelin/contracts/access/Ownable.sol';
 import {Math} from '@openzeppelin/contracts/utils/math/Math.sol';
+import {Initializable} from '@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol';
+import {Ownable2StepUpgradeable} from '@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol';
 
 /**
  * @title GpcHistoryRegistry
@@ -10,7 +11,7 @@ import {Math} from '@openzeppelin/contracts/utils/math/Math.sol';
  * @dev The mining proxy is set once as writer. Historical records can be
  *      migrated by the owner only before live records exist for an account.
  */
-contract GpcHistoryRegistry is Ownable {
+contract GpcHistoryRegistry is Initializable, Ownable2StepUpgradeable {
     uint8 public constant HISTORY_LIMIT = 30;
     uint8 public constant POWER_HISTORY_ORDER = 1;
     uint8 public constant POWER_HISTORY_WITHDRAW = 2;
@@ -38,7 +39,7 @@ contract GpcHistoryRegistry is Ownable {
     }
 
     address public writer;
-    uint64 public immutable trackingStartedAt;
+    uint64 public trackingStartedAt;
 
     mapping(address => HistoryMeta) private _historyMeta;
     mapping(address => mapping(uint8 => uint256)) private _powerHistoryRecords;
@@ -49,7 +50,6 @@ contract GpcHistoryRegistry is Ownable {
     event HistoryMigrated(address indexed account, uint256 powerRecords, uint256 quotaRecords);
 
     error ZeroAddress();
-    error WriterAlreadySet();
     error UnauthorizedWriter();
     error HistoryAlreadyMigrated();
     error HistoryAlreadyStarted();
@@ -58,8 +58,11 @@ contract GpcHistoryRegistry is Ownable {
     error HistoryAmountOverflow();
     error TooManyHistoryRecords();
 
+    uint256[45] private __gap;
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
-        trackingStartedAt = uint64(block.timestamp);
+        _disableInitializers();
     }
 
     modifier onlyWriter() {
@@ -67,10 +70,12 @@ contract GpcHistoryRegistry is Ownable {
         _;
     }
 
-    function setWriter(address writer_) external onlyOwner {
-        if (writer_ == address(0)) revert ZeroAddress();
-        if (writer != address(0)) revert WriterAlreadySet();
+    function initialize(address writer_, address governanceOwner_) external initializer {
+        if (writer_ == address(0) || governanceOwner_ == address(0)) revert ZeroAddress();
+        __Ownable2Step_init();
         writer = writer_;
+        trackingStartedAt = uint64(block.timestamp);
+        _transferOwnership(governanceOwner_);
         emit WriterSet(writer_);
     }
 

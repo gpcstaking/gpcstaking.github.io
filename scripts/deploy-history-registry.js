@@ -1,4 +1,4 @@
-const { ethers } = require('hardhat');
+const { ethers, upgrades } = require('hardhat');
 const { guardMainnet } = require('./guard-mainnet');
 
 async function main() {
@@ -9,16 +9,23 @@ async function main() {
   }
 
   const History = await ethers.getContractFactory('GpcHistoryRegistry');
-  const history = await History.deploy();
+  const [deployer] = await ethers.getSigners();
+  const owner = await deployer.getAddress();
+  const history = await upgrades.deployProxy(History, [miningProxy, owner], {
+    kind: 'transparent',
+    initializer: 'initialize',
+    initialOwner: owner
+  });
   await history.waitForDeployment();
   const deploymentTx = history.deploymentTransaction();
+  const implementation = await upgrades.erc1967.getImplementationAddress(history.target);
+  const proxyAdmin = await upgrades.erc1967.getAdminAddress(history.target);
 
-  const writerTx = await history.setWriter(miningProxy);
-  await writerTx.wait();
-
-  console.log('History registry:', history.target);
-  console.log('Registry deployment transaction:', deploymentTx.hash);
-  console.log('Writer transaction:', writerTx.hash);
+  console.log('History registry proxy:', history.target);
+  console.log('History registry implementation:', implementation);
+  console.log('History registry ProxyAdmin:', proxyAdmin);
+  console.log('History registry ProxyAdmin owner:', owner);
+  console.log('Registry proxy deployment transaction:', deploymentTx.hash);
   console.log('Tracking started at:', await history.trackingStartedAt());
 }
 

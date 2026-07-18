@@ -26,8 +26,10 @@ The proxy separates permissions:
 - Oracle keeper service: Cloudflare Worker `gpc-oracle-keeper`, checking once per minute and writing only when the five-minute observation is due
 - Rolling Oracle upgrade: `2026-07-17 18:07:31 CST`
 - Mining proxy: `0x7C7C849734ea94a590266F90B5fD63D555ed3ca3`
-- Mining implementation: `0x2b4AB2684c2a3878CD2cF6b9a1FB7B73797e0569`
-- On-chain history registry: `0x8d3ed404778b2477ca76e0a6E10820C175925D09`
+- Mining implementation: `0x4AE5d13252f14d60f917A3c430f5A588346f3553`
+- On-chain history proxy: `0x7FA470657148AeB586113968B7A427C734293DD0`
+- On-chain history implementation: `0xfc7D11563de08a97D5646664D8aF3491e5e4e4A8`
+- On-chain history ProxyAdmin: `0x9Dabe9298FCF022BD9374ee75210065018E8a482`
 - Mining ProxyAdmin: `0x22FA01523a7b681F09ed181fBB2A096d2Ca5Cb56`
 - DApp: `https://gpcstaking.github.io/`
 

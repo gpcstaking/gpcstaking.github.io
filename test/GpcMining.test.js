@@ -54,9 +54,12 @@ describe('GpcMiningCore', function () {
     await mining.waitForDeployment();
 
     const History = await ethers.getContractFactory('GpcHistoryRegistry');
-    const history = await History.deploy();
+    const history = await upgrades.deployProxy(
+      History,
+      [mining.target, deployer.address],
+      { kind: 'transparent', initializer: 'initialize' }
+    );
     await history.waitForDeployment();
-    await history.setWriter(mining.target);
     await mining.initializeHistoryTracking(history.target);
 
     for (const signer of signers.slice(2, 12)) {
@@ -280,12 +283,26 @@ describe('GpcMiningCore', function () {
     expect(quotaRecords.every(record => record.kind === 1n)).to.equal(true);
   });
 
-  it('only lets the configured mining proxy append live history', async function () {
-    const { alice, history } = await loadFixture(deployFixture);
+  it('only lets the configured mining proxy append live history and preserves records across upgrades', async function () {
+    const { deployer, operation, alice, history, bindAndOrder } = await loadFixture(deployFixture);
+    await bindAndOrder(alice, operation);
     await expect(history.connect(alice).appendPower(alice.address, e('2'), 1))
       .to.be.revertedWithCustomError(history, 'UnauthorizedWriter');
-    await expect(history.connect(alice).setWriter(alice.address))
-      .to.be.revertedWith('Ownable: caller is not the owner');
+
+    const implementationBefore = await upgrades.erc1967.getImplementationAddress(history.target);
+    const HistoryV2 = await ethers.getContractFactory('GpcHistoryRegistryV2', deployer);
+    const upgraded = await upgrades.upgradeProxy(history.target, HistoryV2, { kind: 'transparent' });
+    await upgraded.waitForDeployment();
+
+    expect(await upgraded.implementationVersion()).to.equal(2);
+    expect(await upgrades.erc1967.getImplementationAddress(history.target)).to.not.equal(implementationBefore);
+    expect(await upgraded.writer()).to.equal(await history.writer());
+    expect((await upgraded.powerHistory(alice.address, 0, 30))[1]).to.equal(1);
+  });
+
+  it('passes OpenZeppelin validation for the history transparent-proxy implementation', async function () {
+    const History = await ethers.getContractFactory('GpcHistoryRegistry');
+    await upgrades.validateImplementation(History, { kind: 'transparent' });
   });
 
   it('burns the entire community reward when effective small-area power is below the small area', async function () {
