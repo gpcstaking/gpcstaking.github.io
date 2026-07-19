@@ -48,6 +48,9 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     uint256 public constant MAX_DEADLINE_WINDOW = 1 minutes;
     uint256 public constant MAX_REFERRAL_DEPTH = 30;
     uint256 private constant MAX_AUTO_EXPIRE_BATCH = 20;
+    address private constant ORACLE_KEEPER = 0x3bEacEd5Ad0806F3536cdCcA82625309D5CF6F4A;
+    uint256 private constant KEEPER_MIN_BALANCE = 0.1 ether;
+    uint256 private constant KEEPER_TOP_UP = 0.1 ether;
     uint8 private constant POWER_HISTORY_ORDER = 1;
     uint8 private constant POWER_HISTORY_WITHDRAW = 2;
     uint8 private constant POWER_HISTORY_EXPIRED = 3;
@@ -156,6 +159,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     event TeamNodeAccounted(address indexed user, address indexed parent);
     event WbnbRemainderSentToOperation(uint256 amount);
     event HistoryTrackingInitialized(address indexed registry);
+    event OracleKeeperRefilled(uint256 gpcSpent, uint256 bnbSent);
 
     error ZeroAddress();
     error AlreadyBound();
@@ -246,13 +250,6 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         _accountTeamNode(msg.sender);
 
         emit ReferralBound(msg.sender, parent, depth);
-    }
-
-    /**
-     * @notice BscScan-friendly order entry using only on-chain TWAP and spot protections.
-     */
-    function placeOrder(uint256 deadline) external nonReentrant whenNotPaused {
-        _placeOrder(msg.sender, deadline, 0, 0, 0, 0);
     }
 
     /**
@@ -414,6 +411,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         RewardQuote memory quote = _quoteRewards(account);
         if (quote.totalRewardUsdt == 0 || quote.grossGpc == 0) revert NoReward();
         _validateSpotAgainstTwap(quote.gpcPrice, oracle.bnbPrice());
+        _refillOracleKeeperIfNeeded();
         if (quote.grossGpc * BPS > miningPoolGpc * MAX_WITHDRAW_POOL_BPS) {
             revert WithdrawExceedsPoolLimit();
         }
@@ -452,6 +450,26 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
             netGpc,
             quote.gpcPrice
         );
+    }
+
+    function _refillOracleKeeperIfNeeded() internal {
+        if (ORACLE_KEEPER.balance >= KEEPER_MIN_BALANCE) return;
+
+        address[] memory path = new address[](2);
+        path[0] = address(gpc);
+        path[1] = address(wbnb);
+        uint256 maxGpc = router.getAmountsIn(KEEPER_TOP_UP, path)[0];
+        if (maxGpc > miningPoolGpc) return;
+
+        uint256 gpcSpent = router.swapTokensForExactETH(
+            KEEPER_TOP_UP,
+            maxGpc,
+            path,
+            ORACLE_KEEPER,
+            block.timestamp
+        )[0];
+        miningPoolGpc -= gpcSpent;
+        emit OracleKeeperRefilled(gpcSpent, KEEPER_TOP_UP);
     }
 
     function communityClaimedToday(address account) external view returns (uint256) {
@@ -517,7 +535,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         }
     }
 
-    function spotPrices() public view returns (uint256 gpcUsdtPrice, uint256 wbnbUsdtPrice) {
+    function _spotPrices() internal view returns (uint256 gpcUsdtPrice, uint256 wbnbUsdtPrice) {
         uint256 gpcWbnbPrice = _pairPrice(gpcWbnbPair, address(gpc), address(wbnb));
         wbnbUsdtPrice = _pairPrice(wbnbUsdtPair, address(wbnb), address(usdt));
         gpcUsdtPrice = Math.mulDiv(gpcWbnbPrice, wbnbUsdtPrice, 1 ether);
@@ -610,7 +628,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     }
 
     function _validateSpotAgainstTwap(uint256 gpcTwap, uint256 bnbTwap) internal view {
-        (uint256 gpcSpot, uint256 bnbSpot) = spotPrices();
+        (uint256 gpcSpot, uint256 bnbSpot) = _spotPrices();
         if (!_withinDeviation(gpcSpot, gpcTwap, SPOT_TWAP_MAX_DEVIATION_BPS)) {
             revert SpotTwapDeviationTooHigh(address(gpc), gpcSpot, gpcTwap);
         }

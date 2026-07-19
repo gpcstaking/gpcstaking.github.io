@@ -18,8 +18,25 @@ contract MockRouter is IPancakeRouterV2 {
         lpToken = new MockERC20('Mock LP', 'MLP');
     }
 
+    receive() external payable {}
+
     function setRate(address tokenIn, address tokenOut, uint256 rateWad) external {
         rate[tokenIn][tokenOut] = rateWad;
+    }
+
+    function getAmountsIn(uint256 amountOut, address[] calldata path)
+        external
+        view
+        override
+        returns (uint256[] memory amounts)
+    {
+        amounts = new uint256[](path.length);
+        amounts[path.length - 1] = amountOut;
+        for (uint256 i = path.length - 1; i != 0; --i) {
+            uint256 rateWad = rate[path[i - 1]][path[i]];
+            require(rateWad != 0, 'NO_RATE');
+            amounts[i - 1] = (amounts[i] * 1 ether + rateWad - 1) / rateWad;
+        }
     }
 
     function swapExactTokensForTokensSupportingFeeOnTransferTokens(
@@ -37,6 +54,26 @@ contract MockRouter is IPancakeRouterV2 {
 
         IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
         MockERC20(tokenOut).mint(to, amountOut);
+    }
+
+    function swapTokensForExactETH(
+        uint256 amountOut,
+        uint256 amountInMax,
+        address[] calldata path,
+        address to,
+        uint256 deadline
+    ) external override returns (uint256[] memory amounts) {
+        require(block.timestamp <= deadline, 'EXPIRED');
+        uint256 rateWad = rate[path[0]][path[path.length - 1]];
+        uint256 amountIn = (amountOut * 1 ether + rateWad - 1) / rateWad;
+        require(amountIn <= amountInMax, 'EXCESSIVE_INPUT');
+        IERC20(path[0]).safeTransferFrom(msg.sender, address(this), amountIn);
+        (bool sent, ) = payable(to).call{value: amountOut}('');
+        require(sent, 'ETH_TRANSFER_FAILED');
+
+        amounts = new uint256[](path.length);
+        amounts[0] = amountIn;
+        amounts[path.length - 1] = amountOut;
     }
 
     function addLiquidity(

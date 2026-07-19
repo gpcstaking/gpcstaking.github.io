@@ -1,0 +1,44 @@
+{
+  "version": "1.0",
+  "chainId": "56",
+  "createdAt": 1784474682000,
+  "meta": {
+    "name": "GPC Mining Oracle Keeper Refill Upgrade",
+    "description": "Upgrade mining so a successful withdrawal swaps mining-pool GPC for exactly 0.1 BNB when the Oracle keeper balance is below 0.1 BNB.",
+    "txBuilderVersion": "1.18.0",
+    "createdFromSafeAddress": "0xA115A26023eF5072057DBF9Ef43C2f61F79F38b7"
+  },
+  "transactions": [
+    {
+      "to": "0x2202Cd78D61274c02F7BDB8A92Fb99489B24D97A",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+            "internalType": "contract ITransparentUpgradeableProxy",
+            "name": "proxy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "implementation",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "name": "upgradeAndCall",
+        "payable": true
+      },
+      "contractInputsValues": {
+        "proxy": "0xB78A5ed9166c894C3ca3C7acD102378bab6da89D",
+        "implementation": "0x4b01653d376a2f64F06cd8b68Ce31e4A618Eb8a2",
+        "data": "0x"
+      }
+    }
+  ]
+}

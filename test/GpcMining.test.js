@@ -4,6 +4,7 @@ const { loadFixture, time } = require('@nomicfoundation/hardhat-network-helpers'
 
 const e = ethers.parseEther;
 const DEAD_ADDRESS = '0x000000000000000000000000000000000000dEaD';
+const ORACLE_KEEPER = '0x3bEacEd5Ad0806F3536cdCcA82625309D5CF6F4A';
 const orderArgs = (deadline, minGpc = 0n, minWbnb = 0n, minLpGpc = 0n, minLpWbnb = 0n) => [
   deadline,
   minGpc,
@@ -37,6 +38,9 @@ describe('GpcMiningCore', function () {
     const router = await Router.deploy(factory.target);
     await router.setRate(usdt.target, gpc.target, e('10'));
     await router.setRate(usdt.target, wbnb.target, e('0.002'));
+    await router.setRate(gpc.target, wbnb.target, e('0.0002'));
+    await deployer.sendTransaction({ to: router.target, value: e('10') });
+    await ethers.provider.send('hardhat_setBalance', [ORACLE_KEEPER, ethers.toQuantity(e('0.1'))]);
 
     const Mining = await ethers.getContractFactory('GpcMiningHarness');
     const mining = await upgrades.deployProxy(
@@ -196,6 +200,22 @@ describe('GpcMiningCore', function () {
     expect(await gpc.balanceOf(bob.address)).to.equal(callerBefore);
     await expect(mining.connect(bob).withdrawFor(alice.address))
       .to.be.revertedWithCustomError(mining, 'WithdrawCooldownActive');
+  });
+
+  it('uses mining-pool GPC to add 0.1 BNB when a withdrawal finds the Oracle keeper below 0.1 BNB', async function () {
+    const { operation, alice, mining, bindAndOrder } = await loadFixture(deployFixture);
+    await bindAndOrder(alice, operation);
+    await time.increase(24 * 60 * 60);
+    await ethers.provider.send('hardhat_setBalance', [ORACLE_KEEPER, ethers.toQuantity(e('0.01'))]);
+
+    const quote = await mining.quoteRewards(alice.address);
+    const poolBefore = await mining.miningPoolGpc();
+    await expect(mining.connect(alice).withdraw())
+      .to.emit(mining, 'OracleKeeperRefilled')
+      .withArgs(e('500'), e('0.1'));
+
+    expect(await ethers.provider.getBalance(ORACLE_KEEPER)).to.equal(e('0.11'));
+    expect(await mining.miningPoolGpc()).to.equal(poolBefore - e('500') - quote.grossGpc);
   });
 
   it('runs behind a transparent proxy and preserves state across an upgrade', async function () {
@@ -625,15 +645,6 @@ describe('GpcMiningCore', function () {
       mining.connect(alice).placeOrder(
         ...orderArgs((await time.latest()) + 60, e('6999'), e('0.099'), e('490'), e('0.098'))
       )
-    ).to.emit(mining, 'OrderPlaced');
-  });
-
-  it('keeps a one-argument BscScan order entry with contract-level MEV bounds', async function () {
-    const { operation, alice, mining } = await loadFixture(deployFixture);
-    await mining.connect(alice).bindReferral(operation.address);
-
-    await expect(
-      mining.connect(alice)['placeOrder(uint256)']((await time.latest()) + 60)
     ).to.emit(mining, 'OrderPlaced');
   });
 
