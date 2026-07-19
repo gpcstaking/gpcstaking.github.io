@@ -29,10 +29,6 @@ The proxy separates permissions:
 - Mining proxy: `0xB78A5ed9166c894C3ca3C7acD102378bab6da89D`
 - Mining implementation: `0x102d567bA16b3f693054d5b466909361aa39138E`
 - Mining ProxyAdmin: `0x2202Cd78D61274c02F7BDB8A92Fb99489B24D97A`
-- On-chain history proxy: `0x1b525f3F0e9009926255eD347177Ee0efB862CDc`
-- On-chain history implementation: `0xafC374B119B796626e57693273Cf540d911DA949`
-- On-chain history ProxyAdmin: `0x2222f6872BC8f962Dd76fFEAFc01fA06A8f75e7F`
-- Mining/history ProxyAdmin owner: `0xA115A26023eF5072057DBF9Ef43C2f61F79F38b7` (Safe 2-of-3)
 - DApp: `https://gpcstaking.github.io/`
 
 The Oracle, replacement mining, and history ProxyAdmin contracts are controlled by the designated Safe. The deployer remains the separate mining business owner for pause/unpause until a later explicit business-ownership handover.
