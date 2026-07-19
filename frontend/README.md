@@ -1,6 +1,6 @@
 # GPC Mining DApp
 
-Set `NEXT_PUBLIC_MINING_ADDRESS` in `.env.local` to the verified `GpcMining` deployment.
+The production `GpcMining` proxy is pinned to `0x7C7C849734ea94a590266F90B5fD63D555ed3ca3`. Optional local and GitHub environment values must match this audited address or the build fails.
 
 ```bash
 npm install

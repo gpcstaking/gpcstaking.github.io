@@ -227,7 +227,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         _transferOwnership(governanceOwner_);
     }
 
-    function initializeHistoryTracking(address registry) external reinitializer(3) {
+    function initializeHistoryTracking(address registry) external reinitializer(3) onlyOwner {
         if (registry == address(0) || registry.code.length == 0) revert ZeroAddress();
         historyRegistry = IGpcHistoryRegistry(registry);
         emit HistoryTrackingInitialized(registry);
@@ -510,8 +510,12 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         effectiveSmallArea = Math.min(smallArea, fiveTimesPersonal);
     }
 
-    function directReferrals(address account) external view returns (address[] memory) {
-        return _directReferrals[account];
+    function directReferralCount(address account) external view returns (uint256) {
+        return _directReferrals[account].length;
+    }
+
+    function directReferralAt(address account, uint256 index) external view returns (address) {
+        return _directReferrals[account][index];
     }
 
     function largestBranch(address account) external view returns (address branch, uint256 power) {

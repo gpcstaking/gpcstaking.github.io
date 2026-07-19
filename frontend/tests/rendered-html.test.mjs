@@ -62,7 +62,10 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /const ORDER_AMOUNT = 1n \* 10n \*\* 18n/);
   assert.match(source, /approve\(MINING_ADDRESS, ORDER_AMOUNT,/);
   assert.match(source, /授权 1 USDT/);
-  assert.match(source, /directReferrals\(address\)/);
+  assert.match(source, /directReferralCount\(address\)/);
+  assert.match(source, /directReferralAt\(address,uint256\)/);
+  assert.match(source, /DIRECT_REFERRAL_PAGE_SIZE = 20/);
+  assert.match(source, /加载更多/);
   assert.match(source, /branchPower\(address,address\)/);
   assert.match(source, /largestBranch\(address\)/);
   assert.match(source, /teamNodeCount\(address\)/);
@@ -87,6 +90,8 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /claimedTodayGpc/);
   assert.match(source, /claimedTodayStaticGpc/);
   assert.match(source, /claimedTodayDynamicGpc/);
+  assert.match(source, /todayClaimsError/);
+  assert.match(source, /读取失败/);
   assert.match(source, /0x000000000000000000000000000000000000dEaD/);
   assert.match(source, /gpc\.balanceOf\(DEAD_ADDRESS\)/);
   assert.match(source, /"home" \| "order" \| "team" \| "ecosystem"/);
@@ -100,6 +105,10 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /大区/);
   assert.match(source, /小区/);
   assert.match(source, /placeOrder\.staticCall/);
+  assert.match(source, /https:\/\/bscrpc\.pancakeswap\.finance/);
+  assert.match(source, /Configured mining address does not match the audited BSC proxy/);
+  assert.match(source, /snapshot\.allowance !== ORDER_AMOUNT/);
+  assert.match(source, /调整授权为 1 USDT/);
   assert.match(source, /TRANSACTION_GAS_HEADROOM_BPS = 3_000n/);
   assert.match(source, /gasLimitWithHeadroom/);
   assert.match(source, /bindReferral\.estimateGas/);

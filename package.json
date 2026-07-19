@@ -5,7 +5,8 @@
   "description": "GPC fixed-order mining contracts and DApp",
   "scripts": {
     "compile": "hardhat compile",
-    "test": "hardhat test",
+    "test": "hardhat test && npm run check:size",
+    "check:size": "node scripts/check-contract-size.js",
     "test:coverage": "hardhat coverage",
     "deploy:oracle": "hardhat run scripts/deploy-oracle.js --network bsc",
     "prepare-upgrade:oracle": "hardhat run scripts/prepare-upgrade-oracle.js --network bsc",

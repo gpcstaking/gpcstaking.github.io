@@ -14,7 +14,11 @@ import {
 
 const viteEnv = import.meta.env as Record<string, string | undefined>;
 const nodeEnv = typeof process === "undefined" ? undefined : process.env;
-const MINING_ADDRESS = viteEnv.VITE_MINING_ADDRESS ?? nodeEnv?.NEXT_PUBLIC_MINING_ADDRESS ?? "";
+const MINING_ADDRESS = "0x7C7C849734ea94a590266F90B5fD63D555ed3ca3";
+const configuredMiningAddress = viteEnv.VITE_MINING_ADDRESS ?? nodeEnv?.NEXT_PUBLIC_MINING_ADDRESS;
+if (configuredMiningAddress && configuredMiningAddress.toLowerCase() !== MINING_ADDRESS.toLowerCase()) {
+  throw new Error("Configured mining address does not match the audited BSC proxy");
+}
 const USDT_ADDRESS = "0x55d398326f99059fF775485246999027B3197955";
 const GPC_ADDRESS = "0xD3c304697f63B279cd314F92c19cDBE5E5b1631A";
 const WBNB_ADDRESS = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c";
@@ -27,6 +31,8 @@ const MINING_ABI = [
   "function totalPower() view returns (uint256)",
   "function miningPoolGpc() view returns (uint256)",
   "function communityPower(address) view returns (uint256 total,uint256 largestBranchPower,uint256 smallArea,uint256 effectiveSmallArea)",
+  "function directReferralCount(address) view returns (uint256)",
+  "function directReferralAt(address,uint256) view returns (address)",
   "function directReferrals(address) view returns (address[])",
   "function branchPower(address,address) view returns (uint256)",
   "function largestBranch(address) view returns (address branch,uint256 power)",
@@ -78,6 +84,7 @@ const LOG_QUERY_BLOCK_SPAN = 50_000;
 const HISTORY_PROVIDER = new JsonRpcProvider("https://bsc.rpc.blxrbdn.com", 56, { staticNetwork: true, batchMaxCount: 1 });
 const USER_SWAP_SLIPPAGE_BPS = 30n; // 0.3% from the pre-signing router quote
 const ORDER_DEADLINE_SECONDS = 60;
+const DIRECT_REFERRAL_PAGE_SIZE = 20;
 const LP_SLIPPAGE_BPS = 200n;
 const TRANSACTION_GAS_HEADROOM_BPS = 3_000n; // BSC estimation can underfund nested contract calls
 
@@ -107,6 +114,7 @@ type Snapshot = {
   oracleReady: boolean;
   largestBranch: string;
   teamNodeCount: bigint;
+  directReferralCount: bigint;
   directReferrals: Array<{ address: string; branchPower: bigint }>;
 };
 
@@ -150,6 +158,7 @@ const emptySnapshot: Snapshot = {
   oracleReady: false,
   largestBranch: ZERO_ADDRESS,
   teamNodeCount: 0n,
+  directReferralCount: 0n,
   directReferrals: [],
 };
 
@@ -170,6 +179,22 @@ function compact(value: bigint, language: Language, maximumFractionDigits = 2) {
 
 function gasLimitWithHeadroom(estimatedGas: bigint) {
   return estimatedGas * (BPS + TRANSACTION_GAS_HEADROOM_BPS) / BPS;
+}
+
+async function loadDirectReferralPage(mining: Contract, account: string, offset: number) {
+  try {
+    const total = await mining.directReferralCount(account) as bigint;
+    const safeTotal = Number(total > BigInt(Number.MAX_SAFE_INTEGER) ? BigInt(Number.MAX_SAFE_INTEGER) : total);
+    const end = Math.min(offset + DIRECT_REFERRAL_PAGE_SIZE, safeTotal);
+    const addresses = await Promise.all(
+      Array.from({ length: Math.max(0, end - offset) }, (_, index) => mining.directReferralAt(account, offset + index) as Promise<string>),
+    );
+    return { total, addresses };
+  } catch {
+    // Transitional fallback for the previous implementation while the proxy upgrade propagates.
+    const all = Array.from(await mining.directReferrals(account) as string[]);
+    return { total: BigInt(all.length), addresses: all.slice(offset, offset + DIRECT_REFERRAL_PAGE_SIZE) };
+  }
 }
 
 function formatCount(value: bigint, language: Language) {
@@ -340,13 +365,15 @@ export default function Home() {
   const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([]);
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [ledgerError, setLedgerError] = useState<LocalizedStatus | null>(null);
+  const [todayClaimsError, setTodayClaimsError] = useState(false);
+  const [referralsLoading, setReferralsLoading] = useState(false);
   const refreshSequence = useRef(0);
 
   const text = (zh: string, en: string) => language === "zh" ? zh : en;
 
   const isConfigured = isAddress(MINING_ADDRESS);
   const isBound = snapshot.parent !== ZERO_ADDRESS;
-  const needsApproval = snapshot.allowance < ORDER_AMOUNT;
+  const needsApproval = snapshot.allowance !== ORDER_AMOUNT;
   const hasEnoughUsdt = snapshot.usdtBalance >= ORDER_AMOUNT;
   const canWithdraw = snapshot.nextWithdrawAt !== 0 && currentTime >= snapshot.nextWithdrawAt;
   const bindingRequired = Boolean(account) && !isBound;
@@ -433,6 +460,8 @@ export default function Home() {
       setLedgerKind(null);
       setLedgerEntries([]);
       setLedgerError(null);
+      setTodayClaimsError(false);
+      setReferralsLoading(false);
       setStatus({ zh: "钱包账户或网络已变更，请重新连接", en: "Wallet account or network changed. Please reconnect." });
     };
     ethereum.on("accountsChanged", invalidateSession);
@@ -453,14 +482,14 @@ export default function Home() {
     const mining = new Contract(MINING_ADDRESS, MINING_ABI, activeProvider);
     const usdt = new Contract(USDT_ADDRESS, ERC20_ABI, activeProvider);
     const gpc = new Contract(GPC_ADDRESS, ERC20_ABI, activeProvider);
-    const todayClaimsPromise = loadTodayClaims(activeAccount).catch(() => ({ gpc: 0n, usdt: 0n, staticGpc: 0n, dynamicGpc: 0n }));
-    const [user, parent, totalPower, poolGpc, community, directReferralAddresses, largestBranch, teamNodeCount, communityClaimedToday, usdtBalance, allowance, oracleAddress, burnedGpc] = await Promise.all([
+    setTodayClaimsError(false);
+    const todayClaimsPromise = loadTodayClaims(activeAccount);
+    const [user, parent, totalPower, poolGpc, community, largestBranch, teamNodeCount, communityClaimedToday, usdtBalance, allowance, oracleAddress, burnedGpc] = await Promise.all([
       mining.users(activeAccount),
       mining.parentOf(activeAccount),
       mining.totalPower(),
       mining.miningPoolGpc(),
       mining.communityPower(activeAccount),
-      mining.directReferrals(activeAccount),
       mining.largestBranch(activeAccount),
       mining.teamNodeCount(activeAccount),
       mining.communityClaimedToday(activeAccount),
@@ -469,6 +498,9 @@ export default function Home() {
       mining.oracle(),
       gpc.balanceOf(DEAD_ADDRESS),
     ]);
+    const referralPage = await loadDirectReferralPage(mining, activeAccount, 0);
+    const directReferralCount = referralPage.total;
+    const directReferralAddresses = referralPage.addresses;
     const directReferrals = await Promise.all(
       Array.from(directReferralAddresses as string[]).map(async (address) => ({
         address,
@@ -511,6 +543,7 @@ export default function Home() {
       oracleReady,
       largestBranch: largestBranch.branch,
       teamNodeCount,
+      directReferralCount,
       directReferrals,
     });
     void todayClaimsPromise.then(todayClaims => {
@@ -522,12 +555,40 @@ export default function Home() {
         claimedTodayStaticGpc: todayClaims.staticGpc,
         claimedTodayDynamicGpc: todayClaims.dynamicGpc,
       }));
+    }).catch(() => {
+      if (refreshSequence.current !== refreshId) return;
+      setTodayClaimsError(true);
     });
     setCurrentTime(Math.floor(Date.now() / 1000));
     setStatus(oracleReady
       ? { zh: "链上数据已更新", en: "On-chain data updated" }
       : { zh: "合约已部署，Oracle 暂未就绪", en: "Contract deployed; Oracle is not ready yet" });
   }, [isConfigured]);
+
+  async function loadMoreReferrals() {
+    if (!provider || !account || referralsLoading) return;
+    const start = snapshot.directReferrals.length;
+    if (BigInt(start) >= snapshot.directReferralCount) return;
+
+    setReferralsLoading(true);
+    try {
+      const mining = new Contract(MINING_ADDRESS, MINING_ABI, provider);
+      const referralPage = await loadDirectReferralPage(mining, account, start);
+      const next = await Promise.all(referralPage.addresses.map(async address => ({
+        address,
+        branchPower: await mining.branchPower(account, address) as bigint,
+      })));
+      setSnapshot(current => ({
+        ...current,
+        directReferralCount: referralPage.total,
+        directReferrals: [...current.directReferrals, ...next],
+      }));
+    } catch {
+      setStatus({ zh: "直推列表读取失败，请稍后重试", en: "Unable to load referrals. Try again shortly." });
+    } finally {
+      setReferralsLoading(false);
+    }
+  }
 
   async function connectWallet() {
     if (!window.ethereum) {
@@ -570,7 +631,7 @@ export default function Home() {
         chainId: BSC_CHAIN_ID,
         chainName: "BNB Smart Chain Mainnet",
         nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 },
-        rpcUrls: ["https://bsc-dataseed.binance.org"],
+        rpcUrls: ["https://bscrpc.pancakeswap.finance"],
         blockExplorerUrls: ["https://bscscan.com"],
       }],
     });
@@ -739,14 +800,14 @@ export default function Home() {
           <section className="balance-card" aria-label={text("今日已领取", "Claimed today")}>
             <div className="balance-topline">
               <span>{text("今日已领取", "Claimed today")}</span>
-              <span className="mode-chip">{text("链上到账", "On-chain settled")}</span>
+              <span className={`mode-chip ${todayClaimsError ? "error" : ""}`}>{todayClaimsError ? text("读取失败", "Read failed") : text("链上到账", "On-chain settled")}</span>
             </div>
-            <div className="main-balance"><strong>{compact(snapshot.claimedTodayGpc, language, 4)}</strong><span>GPC</span></div>
-            <p>≈ {compact(snapshot.claimedTodayUsdt, language, 4)} USDT</p>
+            <div className="main-balance"><strong>{todayClaimsError ? "--" : compact(snapshot.claimedTodayGpc, language, 4)}</strong><span>GPC</span></div>
+            <p>≈ {todayClaimsError ? "--" : compact(snapshot.claimedTodayUsdt, language, 4)} USDT</p>
             <div className="yield-split">
-              <div><span>{text("静态收益", "Static reward")}</span><strong>{compact(snapshot.claimedTodayStaticGpc, language, 4)} GPC</strong></div>
+              <div><span>{text("静态收益", "Static reward")}</span><strong>{todayClaimsError ? "--" : compact(snapshot.claimedTodayStaticGpc, language, 4)} GPC</strong></div>
               <i />
-              <div><span>{text("动态收益", "Dynamic reward")}</span><strong>{compact(snapshot.claimedTodayDynamicGpc, language, 4)} GPC</strong></div>
+              <div><span>{text("动态收益", "Dynamic reward")}</span><strong>{todayClaimsError ? "--" : compact(snapshot.claimedTodayDynamicGpc, language, 4)} GPC</strong></div>
             </div>
             <button className="claim-button" onClick={withdraw} disabled={busy || !account || !canWithdraw || snapshot.totalReward === 0n}>
               <DappIcon name="withdraw" size={18} />{text("领取收益", "Claim rewards")}
@@ -782,7 +843,7 @@ export default function Home() {
             ) : !hasEnoughUsdt ? (
               <button className="main-action" disabled>{text("USDT 余额不足（需要 1 USDT）", "Insufficient USDT (1 USDT required)")}</button>
             ) : needsApproval ? (
-              <button className="main-action" onClick={approveUsdt} disabled={busy || !isConfigured}>{text("授权 1 USDT", "Approve 1 USDT")}</button>
+              <button className="main-action" onClick={approveUsdt} disabled={busy || !isConfigured}>{snapshot.allowance > ORDER_AMOUNT ? text("调整授权为 1 USDT", "Reset approval to 1 USDT") : text("授权 1 USDT", "Approve 1 USDT")}</button>
             ) : !snapshot.oracleReady ? (
               <button className="main-action" disabled>{text("价格服务更新中，请稍后刷新", "Price service updating; refresh shortly")}</button>
             ) : (
@@ -803,7 +864,7 @@ export default function Home() {
             <span>{text("今日社区已收益", "Community earned today")}</span><strong>{compact(snapshot.communityClaimedToday, language, 4)} <small>USDT</small></strong><p>{snapshot.communityClaimedToday > 0n ? text("今日提现已结算的社区收益", "Community earnings settled in today's claim") : text("今日尚未领取社区收益", "No community earnings claimed today")}</p>
           </article>
           <article className="community-card">
-            <div className="community-node-stats"><div><span>{text("直属节点数", "Direct nodes")}</span><strong>{formatCount(BigInt(snapshot.directReferrals.length), language)}</strong></div><div><span>{text("团队节点总数", "Total team nodes")}</span><strong>{formatCount(snapshot.teamNodeCount, language)}</strong></div></div>
+            <div className="community-node-stats"><div><span>{text("直属节点数", "Direct nodes")}</span><strong>{formatCount(snapshot.directReferralCount, language)}</strong></div><div><span>{text("团队节点总数", "Total team nodes")}</span><strong>{formatCount(snapshot.teamNodeCount, language)}</strong></div></div>
             <div className="community-stats"><div><span>{text("小区总算力", "Total small-area power")}</span><strong>{compact(snapshot.smallArea, language)}</strong></div><div><span>{text("小区有效算力", "Effective small-area power")}</span><strong>{compact(snapshot.effectiveSmallArea, language)}</strong></div><div><span>{text("奖励状态", "Reward status")}</span><strong className={communityRewardBurned ? "burned" : "active"}>{snapshot.smallArea === 0n ? text("暂无", "None") : communityRewardBurned ? text("全部烧伤", "Burned") : text("已激活", "Active")}</strong></div></div>
             {isBound ? (
               <div className="parent-row"><span>{text("我的上级", "My sponsor")}</span><strong>{shortAddress(snapshot.parent)}</strong></div>
@@ -814,7 +875,7 @@ export default function Home() {
           <article className="direct-list-card">
             <div className="direct-list-heading">
               <div><span className="heading-icon"><DappIcon name="team" size={17} /></span><strong>{text("直推下级", "Direct referrals")}</strong></div>
-              <span>{snapshot.directReferrals.length}</span>
+              <span>{formatCount(snapshot.directReferralCount, language)}</span>
             </div>
             {snapshot.directReferrals.length > 0 ? (
               <div className="direct-referral-list">
@@ -831,6 +892,9 @@ export default function Home() {
               </div>
             ) : (
               <div className="direct-empty">{account ? text("暂无直推下级，刷新后可查看最新链上关系", "No direct referrals yet. Refresh to load the latest on-chain relationships.") : text("连接钱包后查看直推下级", "Connect your wallet to view direct referrals")}</div>
+            )}
+            {BigInt(snapshot.directReferrals.length) < snapshot.directReferralCount && (
+              <button className="direct-load-more" onClick={loadMoreReferrals} disabled={referralsLoading}>{referralsLoading ? text("读取中…", "Loading…") : text("加载更多", "Load more")}</button>
             )}
           </article>
           <div className="burn-note"><DappIcon name="shield" size={16} /><div><strong>{text("社区收益全额烧伤规则", "Full community reward burn")}</strong><span>{text("小区有效算力低于小区总算力时，社区收益为 0 并全部烧伤；只有有效算力覆盖全部小区总算力时，才获得 5% 小区奖励。", "If effective power is below total small-area power, the full community reward is burned to zero. The 5% reward is paid only when effective power covers the entire small area.")}</span></div></div>

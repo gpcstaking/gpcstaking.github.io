@@ -7,6 +7,7 @@ import {
   http,
   isAddress,
   parseAbi,
+  parseEther,
   parseGwei,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -20,6 +21,8 @@ const DEFAULT_BSC_RPC_URLS = [
 
 const ORACLE_ABI = parseAbi([
   "function nextUpdateAt() view returns (uint256)",
+  "function lastObservationTimestamp() view returns (uint64)",
+  "function MAX_PRICE_AGE() view returns (uint256)",
   "function update()",
 ]);
 
@@ -121,17 +124,39 @@ export async function runKeeper(env) {
   const transport = rpcTransport(env);
   const publicClient = createPublicClient({ chain: bsc, transport });
   const walletClient = createWalletClient({ account, chain: bsc, transport });
-  const [gasPrice, balance] = await Promise.all([
+  const [gasPrice, balance, latestBlock, lastObservationTimestamp, maxPriceAge] = await Promise.all([
     publicClient.getGasPrice(),
     publicClient.getBalance({ address: account.address }),
+    publicClient.getBlock({ blockTag: "latest" }),
+    publicClient.readContract({
+      address: env.ORACLE_ADDRESS,
+      abi: ORACLE_ABI,
+      functionName: "lastObservationTimestamp",
+    }),
+    publicClient.readContract({
+      address: env.ORACLE_ADDRESS,
+      abi: ORACLE_ABI,
+      functionName: "MAX_PRICE_AGE",
+    }),
   ]);
   const maxGasPrice = parseGwei(env.MAX_GAS_PRICE_GWEI || "1");
+  const minKeeperBalance = parseEther(env.MIN_KEEPER_BALANCE_BNB || "0.001");
+  const oracleAgeSeconds = latestBlock.timestamp > lastObservationTimestamp
+    ? latestBlock.timestamp - lastObservationTimestamp
+    : 0n;
+  const alerts = [];
+  if (balance < minKeeperBalance) alerts.push("keeper_balance_low");
+  if (oracleAgeSeconds + 5n * 60n >= maxPriceAge) alerts.push("oracle_near_stale");
+  if (alerts.length !== 0) console.warn(JSON.stringify({ alerts, keeper: account.address }));
   if (gasPrice > maxGasPrice) {
     const result = {
       result: "gas_price_too_high",
       gasPriceGwei: formatGwei(gasPrice),
       maxGasPriceGwei: formatGwei(maxGasPrice),
       keeper: account.address,
+      keeperBalanceBnb: formatEther(balance),
+      oracleAgeSeconds: oracleAgeSeconds.toString(),
+      alerts,
     };
     console.warn(JSON.stringify(result));
     return result;
@@ -159,6 +184,8 @@ export async function runKeeper(env) {
     miningExpiry,
     keeper: account.address,
     keeperBalanceBnb: formatEther(balance),
+    oracleAgeSeconds: oracleAgeSeconds.toString(),
+    alerts,
   };
   console.log(JSON.stringify(result));
   if (errors.length !== 0) throw new Error(errors.join("; "));

@@ -16,4 +16,4 @@ npx wrangler secret put BSC_RPC_URLS
 npm run deploy
 ```
 
-The configured 1 gwei gas-price ceiling prevents unexpected spending during a fee spike. Fund the printed keeper address with BNB and monitor Worker logs and wallet balance.
+The configured 1 gwei gas-price ceiling prevents unexpected spending during a fee spike. The Worker emits structured `keeper_balance_low` and `oracle_near_stale` alerts when its balance drops below 0.001 BNB or Oracle freshness approaches the 30-minute fail-closed limit. Fund the printed keeper address with BNB and route Worker warning logs to an external alert destination.

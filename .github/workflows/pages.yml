@@ -29,6 +29,10 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
+      - name: Verify audited mining proxy
+        env:
+          VITE_MINING_ADDRESS: ${{ vars.MINING_ADDRESS }}
+        run: test "$VITE_MINING_ADDRESS" = "0x7C7C849734ea94a590266F90B5fD63D555ed3ca3"
       - name: Build static DApp
         working-directory: frontend
         env:

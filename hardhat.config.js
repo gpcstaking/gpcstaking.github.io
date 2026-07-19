@@ -10,7 +10,7 @@ module.exports = {
     version: '0.8.21',
     settings: {
       viaIR: true,
-      optimizer: { enabled: true, runs: 500 },
+      optimizer: { enabled: true, runs: 100 },
       evmVersion: 'paris'
     }
   },

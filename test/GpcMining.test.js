@@ -181,6 +181,32 @@ describe('GpcMiningCore', function () {
     await upgrades.validateImplementation(Mining, { kind: 'transparent' });
   });
 
+  it('only lets the business owner initialize history tracking', async function () {
+    const { deployer, operation, alice, usdt, gpc, wbnb, router, oracle, history } = await loadFixture(deployFixture);
+    const Mining = await ethers.getContractFactory('GpcMiningHarness');
+    const freshMining = await upgrades.deployProxy(
+      Mining,
+      [
+        usdt.target,
+        gpc.target,
+        wbnb.target,
+        router.target,
+        oracle.target,
+        operation.address,
+        deployer.address
+      ],
+      { kind: 'transparent', initializer: 'initialize' }
+    );
+    await freshMining.waitForDeployment();
+
+    await expect(
+      freshMining.connect(alice).initializeHistoryTracking(history.target)
+    ).to.be.revertedWith('Ownable: caller is not the owner');
+    await expect(freshMining.initializeHistoryTracking(history.target))
+      .to.emit(freshMining, 'HistoryTrackingInitialized')
+      .withArgs(history.target);
+  });
+
   it('redirects the direct reward when the parent has no promotion quota', async function () {
     const { operation, alice, usdt, mining, bindAndOrder } = await loadFixture(deployFixture);
 
@@ -459,8 +485,10 @@ describe('GpcMiningCore', function () {
     await mining.connect(bob).bindReferral(alice.address);
     await mining.connect(carol).bindReferral(bob.address);
 
-    expect((await mining.directReferrals(operation.address)).length).to.equal(1);
-    expect((await mining.directReferrals(alice.address)).length).to.equal(1);
+    expect(await mining.directReferralCount(operation.address)).to.equal(1);
+    expect(await mining.directReferralCount(alice.address)).to.equal(1);
+    expect(await mining.directReferralAt(operation.address, 0)).to.equal(alice.address);
+    expect(await mining.directReferralAt(alice.address, 0)).to.equal(bob.address);
     expect(await mining.teamNodeCount(operation.address)).to.equal(3);
     expect(await mining.teamNodeCount(alice.address)).to.equal(2);
     expect(await mining.teamNodeCount(bob.address)).to.equal(1);
@@ -470,6 +498,16 @@ describe('GpcMiningCore', function () {
     await mining.registerTeamNodeCounts([alice.address, bob.address, carol.address]);
     expect(await mining.teamNodeCount(operation.address)).to.equal(3);
     expect(await mining.teamNodeCount(alice.address)).to.equal(2);
+  });
+
+  it('exposes direct referrals through bounded index reads', async function () {
+    const { signers, operation, mining } = await loadFixture(deployFixture);
+    const referrals = signers.slice(2, 27);
+    for (const referral of referrals) await mining.connect(referral).bindReferral(operation.address);
+
+    expect(await mining.directReferralCount(operation.address)).to.equal(referrals.length);
+    expect(await mining.directReferralAt(operation.address, 0)).to.equal(referrals[0].address);
+    expect(await mining.directReferralAt(operation.address, referrals.length - 1)).to.equal(referrals.at(-1).address);
   });
 
   it('updates the largest branch when a branch is removed by inactivity expiry', async function () {
