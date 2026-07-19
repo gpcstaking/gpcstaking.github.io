@@ -557,13 +557,15 @@ describe('GpcMiningCore', function () {
       .to.be.revertedWithCustomError(mining, 'SpotTwapDeviationTooHigh');
   });
 
-  it('limits aggregate withdrawals to 5% of the window-opening pool', async function () {
+  it('limits aggregate withdrawals to 2% of the window-opening pool', async function () {
     const { operation, alice, oracle, mining, bindAndOrder } = await loadFixture(deployFixture);
     await bindAndOrder(alice, operation);
     await oracle.setPrices(e('0.1'), e('500'));
     await time.increase(24 * 60 * 60);
     const poolBase = await mining.miningPoolGpc();
-    const windowLimit = poolBase * 500n / 10_000n;
+    expect(await mining.MAX_WITHDRAW_POOL_BPS()).to.equal(100);
+    expect(await mining.MAX_GLOBAL_DAILY_WITHDRAW_POOL_BPS()).to.equal(200);
+    const windowLimit = poolBase * 200n / 10_000n;
     await mining.setWithdrawWindowForTest(await time.latest(), poolBase, windowLimit);
 
     await expect(mining.connect(alice).withdraw())

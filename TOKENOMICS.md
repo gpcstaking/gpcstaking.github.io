@@ -41,7 +41,7 @@ Static plus community rewards are capped at 0.5% of current personal power. The 
 
 For each user, the largest direct referral branch is removed. All other branch power is the small area. Effective small-area power is `min(smallArea, personalPower × 5)`. If effective small-area power is lower than the complete small area, the entire community reward is burned and the community reward is zero. A community reward is paid only when effective small-area power covers the complete small area. Referral depth is limited to 30.
 
-Withdrawals are available once per 24 hours and never accrue missed days. A new order resets only the 24-hour timer. Gross GPC above 1% of the accounted mining pool reverts the entire withdrawal. Aggregate gross withdrawals are additionally capped at 5% of the mining-pool balance captured at the start of each 24-hour global window. A 10% GPC fee goes to the operation wallet.
+Withdrawals are available once per 24 hours and never accrue missed days. A new order resets only the 24-hour timer. A single user's gross daily GPC withdrawal above 1% of the accounted mining pool reverts the entire withdrawal. Aggregate gross withdrawals across all users are additionally capped at 2% of the mining-pool balance captured at the start of each 24-hour global window. A 10% GPC fee goes to the operation wallet.
 
 Every withdrawal validates the fresh six-hour GPC and WBNB TWAPs against current Pancake reserve prices; either price deviating by more than 1% causes the withdrawal to revert. Oracle observations longer than 12 hours are never published as prices. Instead, the stale baseline is reset, prices become unavailable, and a new six-hour observation must complete.
 

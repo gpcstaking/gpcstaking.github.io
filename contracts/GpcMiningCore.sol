@@ -37,7 +37,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     uint256 public constant MAX_DAILY_RATE_BPS = 50; // 0.50%, static + community
     uint256 public constant WITHDRAW_FEE_BPS = 1_000; // 10%
     uint256 public constant MAX_WITHDRAW_POOL_BPS = 100; // 1%
-    uint256 public constant MAX_GLOBAL_DAILY_WITHDRAW_POOL_BPS = 500; // 5% of window-opening pool
+    uint256 public constant MAX_GLOBAL_DAILY_WITHDRAW_POOL_BPS = 200; // 2% of window-opening pool
     uint256 public constant SWAP_SLIPPAGE_BPS = 200; // 2% TWAP floor
     uint256 public constant LP_SLIPPAGE_BPS = 200; // 2%
     uint256 public constant SPOT_TWAP_MAX_DEVIATION_BPS = 100; // 1%
@@ -48,7 +48,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     uint256 public constant MAX_DEADLINE_WINDOW = 5 minutes;
     uint256 public constant MAX_REFERRAL_DEPTH = 30;
     uint256 public constant MAX_EXPIRE_BATCH = 50;
-    uint256 public constant MAX_AUTO_EXPIRE_BATCH = 20;
+    uint256 private constant MAX_AUTO_EXPIRE_BATCH = 20;
     uint8 private constant POWER_HISTORY_ORDER = 1;
     uint8 private constant POWER_HISTORY_WITHDRAW = 2;
     uint8 private constant POWER_HISTORY_EXPIRED = 3;
