@@ -142,19 +142,18 @@ describe('GpcMiningCore', function () {
     expect(await mining.nextExpiryAt()).to.equal(rootInfo.inactivityStartedAt + 180n * 24n * 60n * 60n);
   });
 
-  it('lets only the operation wallet pay for an order credited to a bound beneficiary', async function () {
-    const { operation, alice, bob, usdt, mining, history } = await loadFixture(deployFixture);
-    await mining.connect(alice).bindReferral(operation.address);
-    await usdt.mint(operation.address, e('10'));
-    await usdt.connect(operation).approve(mining.target, e('1'));
+  it('lets any wallet pay for an order credited to a bound beneficiary', async function () {
+    const { operation, alice, bob, carol, usdt, mining, history } = await loadFixture(deployFixture);
     const deadline = (await time.latest()) + 60;
 
     await expect(
-      mining.connect(bob).placeOrderFor(alice.address, deadline, 0, 0, 0, 0)
-    ).to.be.revertedWithCustomError(mining, 'ServiceOperatorOnly');
+      mining.connect(bob).placeOrderFor(carol.address, deadline, 0, 0, 0, 0)
+    ).to.be.revertedWithCustomError(mining, 'ReferralRequired');
+
+    await mining.connect(alice).bindReferral(operation.address);
 
     await expect(
-      mining.connect(operation).placeOrderFor(alice.address, deadline, 0, 0, 0, 0)
+      mining.connect(bob).placeOrderFor(alice.address, deadline, 0, 0, 0, 0)
     ).to.emit(mining, 'OrderPlaced')
       .withArgs(alice.address, operation.address, operation.address, e('7'), e('6.5'), e('0.5'), e('0.0001'), e('0.0001'));
 
@@ -163,7 +162,8 @@ describe('GpcMiningCore', function () {
     expect(beneficiary.totalPowerPurchased).to.equal(e('2'));
     expect(beneficiary.promotionQuota).to.equal(e('1'));
     expect((await mining.users(operation.address)).power).to.equal(0);
-    expect(await usdt.balanceOf(operation.address)).to.equal(e('9.25'));
+    expect(await usdt.balanceOf(bob.address)).to.equal(e('19999'));
+    expect(await usdt.balanceOf(operation.address)).to.equal(e('0.25'));
 
     const [powerHistory, powerHistoryTotal] = await history.powerHistory(alice.address, 0, 30);
     expect(powerHistoryTotal).to.equal(1);

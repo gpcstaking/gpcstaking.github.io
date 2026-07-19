@@ -274,7 +274,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     }
 
     /**
-     * @notice Lets the operation wallet pay for one order credited to an existing referral user.
+     * @notice Lets any wallet pay for one order credited to an existing referral user.
      * @dev The beneficiary receives all power and quota; USDT is always collected from the caller.
      */
     function placeOrderFor(
@@ -285,7 +285,6 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         uint256 userMinLpGpc,
         uint256 userMinLpWbnb
     ) external nonReentrant whenNotPaused {
-        if (msg.sender != operationWallet) revert ServiceOperatorOnly();
         _placeOrder(beneficiary, deadline, userMinGpcOut, userMinWbnbOut, userMinLpGpc, userMinLpWbnb);
     }
 

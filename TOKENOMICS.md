@@ -21,7 +21,7 @@ Both swaps are bounded to 2% below the six-hour TWAP and expire within one minut
 
 Before either swap, current GPC/USDT and WBNB/USDT reserve prices are compared with their six-hour TWAPs. If either absolute deviation exceeds 1%, the whole order reverts before funds are retained. These checks tightly bound sandwich loss but do not make public-mempool execution MEV-free. Configure a client-safe protected BSC RPC in the DApp and verify the selected wallet network. Direct BscScan users may call the one-argument `placeOrder(deadline)` entry, which keeps the contract TWAP and 1% spot guard but cannot add the DApp's stricter pre-signing quote.
 
-The configured operation wallet may place an assisted order for an already-bound beneficiary. USDT is collected from the operation wallet, while power, purchased-power accounting, promotion quota, cooldowns, referral rewards, history, and inactivity scheduling are all applied to the beneficiary exactly as in a self-service order. Other wallets cannot call the assisted entry.
+Any wallet may place an assisted order for an already-bound beneficiary. USDT is collected from the caller, while power, purchased-power accounting, promotion quota, cooldowns, referral rewards, history, and inactivity scheduling are all applied to the beneficiary exactly as in a self-service order. Because adding power resets the beneficiary's withdrawal cooldown under the normal order rules, an assisted order resets it as well.
 
 The production DApp pins the audited Mining proxy and uses bounded direct-referral index reads. History tracking can only be initialized by the Mining business owner; upgrades that introduce a new reinitializer must continue to execute it atomically through `upgradeAndCall`.
 

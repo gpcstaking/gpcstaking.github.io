@@ -330,7 +330,7 @@ function friendlyTransactionError(error: unknown, language: Language) {
   if (contractError("NoReward", "0x6e992686")) return localized("当前没有可领取收益", "There is currently no reward to claim");
   if (contractError("WithdrawExceedsPoolLimit", "0xe9260c57")) return localized("本次提现超过订单矿池 1% 限额", "This claim exceeds the 1% mining-pool limit");
   if (contractError("GlobalWithdrawLimitExceeded", "0x73c5a6b0")) return localized("当前 24 小时全网提现额度已用完，请稍后再试", "The global 24-hour claim limit has been reached. Try again later.");
-  if (contractError("ServiceOperatorOnly", "0x9799b9d3")) return localized("当前钱包没有代操作权限", "This wallet is not authorized for assisted operations");
+  if (contractError("ServiceOperatorOnly", "0x9799b9d3")) return localized("当前钱包没有代提现权限", "This wallet is not authorized for assisted claims");
   if (/TRANSFER_FROM_FAILED|transfer amount exceeds balance|SafeERC20|insufficient allowance/i.test(details)) return localized("USDT 余额或授权不足，本次质押未扣款", "Insufficient USDT balance or allowance. No funds were taken.");
   return details || localized("交易失败，请稍后重试", "Transaction failed. Try again shortly.");
 }
@@ -754,9 +754,6 @@ export default function Home() {
     }
     return runTransaction({ zh: "代报单", en: "Assisted staking" }, async signer => {
       const mining = new Contract(MINING_ADDRESS, MINING_ABI, signer);
-      if ((await mining.operationWallet()).toLowerCase() !== (await signer.getAddress()).toLowerCase()) {
-        throw new Error(text("当前钱包没有代操作权限", "This wallet is not authorized for assisted operations"));
-      }
       const parent = await mining.parentOf(serviceBeneficiary);
       if (parent === ZERO_ADDRESS) {
         throw new Error(text("目标钱包未绑定有效上级", "The beneficiary has not bound a valid sponsor"));
@@ -828,34 +825,28 @@ export default function Home() {
             <div className="service-heading">
               <span>GPC OPERATIONS</span>
               <h1 id="service-title">{text("代操作工具", "Assisted Operations")}</h1>
-              <p>{text("该入口不会出现在普通导航中，链上仅允许运营钱包执行。", "This page is not linked from the public navigation and only the on-chain operation wallet can execute actions.")}</p>
+              <p>{text("该入口不会出现在普通导航中。任何钱包均可代报单，代提现仅限运营钱包。", "This page is not linked from public navigation. Any wallet can place an assisted stake; assisted claims remain operation-wallet only.")}</p>
             </div>
 
             {!account ? (
               <article className="service-lock-card">
                 <span className="service-lock-icon"><DappIcon name="shield" size={24} /></span>
-                <strong>{text("连接运营钱包", "Connect operation wallet")}</strong>
-                <p>{text("连接后合约会再次校验调用钱包权限。", "The contract verifies the caller again after connection.")}</p>
+                <strong>{text("连接支付钱包", "Connect payment wallet")}</strong>
+                <p>{text("任何钱包均可支付 1 USDT，为已绑定用户代报单。", "Any wallet can pay 1 USDT to stake for an already-bound beneficiary.")}</p>
                 <button onClick={connectWallet} disabled={busy}>{text("连接钱包", "Connect wallet")}</button>
-              </article>
-            ) : !isServiceOperator ? (
-              <article className="service-lock-card denied">
-                <span className="service-lock-icon"><DappIcon name="shield" size={24} /></span>
-                <strong>{text("当前钱包无权限", "Unauthorized wallet")}</strong>
-                <p>{text("请切换到合约配置的运营钱包。页面隐藏不能替代链上权限。", "Switch to the operation wallet configured in the contract. A hidden page never replaces on-chain authorization.")}</p>
               </article>
             ) : (
               <>
                 <article className="service-target-card">
-                  <div className="service-operator-row"><span>{text("当前操作钱包", "Current operator")}</span><strong>{shortAddress(account)}</strong></div>
+                  <div className="service-operator-row"><span>{text("当前支付钱包", "Current payer")}</span><strong>{shortAddress(account)}</strong></div>
                   <label htmlFor="service-beneficiary">{text("目标用户钱包地址", "Beneficiary wallet address")}</label>
                   <input id="service-beneficiary" value={serviceBeneficiary} onChange={event => setServiceBeneficiary(event.target.value.trim())} placeholder="0x..." autoComplete="off" autoCapitalize="none" inputMode="text" spellCheck={false} />
-                  <small><DappIcon name="shield" size={13} />{text("代提现收益始终发送给此目标地址", "Assisted claim proceeds always go to this beneficiary")}</small>
+                  <small><DappIcon name="shield" size={13} />{isServiceOperator ? text("算力和额度记入目标用户，代提现收益也只到目标钱包", "Power and quota are credited to the beneficiary; assisted claim proceeds also go only to it") : text("代报单的算力和推广额度记入此目标用户", "Assisted-staking power and referral quota are credited to this beneficiary")}</small>
                 </article>
 
                 <article className="service-action-card">
-                  <div className="service-action-title"><span className="heading-icon"><DappIcon name="order" size={17} /></span><div><strong>{text("代报单", "Assisted staking")}</strong><small>{text("运营钱包支付 1 USDT，目标用户获得 2 算力和 1 U 推广额度", "The operation wallet pays 1 USDT; the beneficiary receives 2 power and 1 U referral quota")}</small></div></div>
-                  <div className="wallet-row"><span>{text("运营钱包 USDT", "Operator USDT")}</span><strong>{compact(snapshot.usdtBalance, language)} USDT</strong></div>
+                  <div className="service-action-title"><span className="heading-icon"><DappIcon name="order" size={17} /></span><div><strong>{text("代报单", "Assisted staking")}</strong><small>{text("当前钱包支付 1 USDT，目标用户获得 2 算力和 1 U 推广额度", "The current wallet pays 1 USDT; the beneficiary receives 2 power and 1 U referral quota")}</small></div></div>
+                  <div className="wallet-row"><span>{text("当前钱包 USDT", "Current wallet USDT")}</span><strong>{compact(snapshot.usdtBalance, language)} USDT</strong></div>
                   {!hasEnoughUsdt ? (
                     <button className="service-action-button" disabled>{text("USDT 余额不足", "Insufficient USDT")}</button>
                   ) : needsApproval ? (
@@ -867,10 +858,10 @@ export default function Home() {
                   )}
                 </article>
 
-                <article className="service-action-card withdraw-card">
+                {isServiceOperator && <article className="service-action-card withdraw-card">
                   <div className="service-action-title"><span className="heading-icon"><DappIcon name="withdraw" size={17} /></span><div><strong>{text("代提现", "Assisted claim")}</strong><small>{text("按目标用户的 24 小时周期结算，手续费到运营钱包，净 GPC 到目标钱包", "Uses the beneficiary's 24-hour cycle; the fee goes to operations and net GPC goes to the beneficiary")}</small></div></div>
                   <button className="service-action-button secondary" onClick={serviceWithdraw} disabled={busy || !isAddress(serviceBeneficiary)}>{text("确认代提现", "Confirm assisted claim")}</button>
-                </article>
+                </article>}
               </>
             )}
           </section>
