@@ -974,14 +974,13 @@ export default function Home() {
             <div className="main-balance"><strong>{todayClaimsError ? "--" : compact(snapshot.claimedTodayGpc, language, 4)}</strong><span>GPC</span></div>
             <p>≈ {todayClaimsError ? "--" : compact(snapshot.claimedTodayUsdt, language, 4)} USDT</p>
             <div className="yield-split">
-              <div><span>{text("静态收益", "Static reward")}</span><strong>{todayClaimsError ? "--" : compact(snapshot.claimedTodayStaticGpc, language, 4)} GPC</strong></div>
+              <div><span>{text("个人收益", "Personal reward")}</span><strong>{todayClaimsError ? "--" : compact(snapshot.claimedTodayStaticGpc, language, 4)} GPC</strong></div>
               <i />
-              <div><span>{text("动态收益", "Dynamic reward")}</span><strong>{todayClaimsError ? "--" : compact(snapshot.claimedTodayDynamicGpc, language, 4)} GPC</strong></div>
+              <div><span>{text("社区收益", "Community reward")}</span><strong>{todayClaimsError ? "--" : compact(snapshot.claimedTodayDynamicGpc, language, 4)} GPC</strong></div>
             </div>
             <button className="claim-button" onClick={withdraw} disabled={busy || !account || !canWithdraw || snapshot.totalReward === 0n}>
               <DappIcon name="withdraw" size={18} />{text("领取收益", "Claim rewards")}
             </button>
-            <div className="countdown-line"><span>{text("提现分配", "Claim allocation")}</span><strong>{text("90% 到账 · 5% 销毁 · 5% 运营", "90% net · 5% burn · 5% operations")}</strong></div>
             <div className="countdown-line"><span>{text("下次可领取", "Next claim")}</span><strong>{canWithdraw ? text("当前可领取", "Available now") : formatTime(snapshot.nextWithdrawAt, language)}</strong></div>
             <span className="card-glow" />
           </section>

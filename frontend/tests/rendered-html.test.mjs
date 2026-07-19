@@ -32,9 +32,10 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(html, /今日尚未领取社区收益/);
   assert.match(html, /今日已领取/);
   assert.match(html, /链上到账/);
-  assert.match(html, /动态收益/);
+  assert.match(html, /个人收益/);
+  assert.match(html, /社区收益/);
   assert.match(html, /GPC 销毁量/);
-  assert.match(html, /90% 到账 · 5% 销毁 · 5% 运营/);
+  assert.doesNotMatch(html, /提现分配|90% 到账 · 5% 销毁 · 5% 运营/);
   assert.doesNotMatch(html, /今日可领取|今日预计/);
   assert.match(html, /aria-label="切换为英文">EN</);
   assert.match(html, /GPC首个链游—GPC传奇/);
