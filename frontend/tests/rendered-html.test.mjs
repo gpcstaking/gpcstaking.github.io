@@ -96,6 +96,10 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /读取失败/);
   assert.match(source, /0x000000000000000000000000000000000000dEaD/);
   assert.match(source, /gpc\.balanceOf\(DEAD_ADDRESS\)/);
+  assert.match(source, /fixed\(snapshot\.power, language, 4\)/);
+  assert.match(source, /compact\(snapshot\.burnedGpc, language, 0\)/);
+  assert.match(source, /compact\(snapshot\.totalPower, language, 0\)/);
+  assert.match(source, /compact\(snapshot\.poolGpc, language, 0\)/);
   assert.match(source, /"home" \| "order" \| "team" \| "ecosystem"/);
   assert.match(source, /switchTab\("ecosystem"\)/);
   assert.doesNotMatch(source, /activeTab !== "profile"|switchTab\("profile"\)/);

@@ -174,9 +174,13 @@ declare global {
   }
 }
 
-function compact(value: bigint, language: Language, maximumFractionDigits = 2) {
+function compact(value: bigint, language: Language, maximumFractionDigits = 2, minimumFractionDigits = 0) {
   const number = Number(formatEther(value));
-  return new Intl.NumberFormat(language === "zh" ? "zh-CN" : "en-US", { maximumFractionDigits }).format(number);
+  return new Intl.NumberFormat(language === "zh" ? "zh-CN" : "en-US", { maximumFractionDigits, minimumFractionDigits }).format(number);
+}
+
+function fixed(value: bigint, language: Language, fractionDigits: number) {
+  return compact(value, language, fractionDigits, fractionDigits);
 }
 
 function gasLimitWithHeadroom(estimatedGas: bigint) {
@@ -867,7 +871,7 @@ export default function Home() {
             </header>
             <article className="ledger-balance-card">
               <span>{text("当前余额", "Current balance")}</span>
-              <div><strong>{compact(ledgerKind === "power" ? snapshot.power : snapshot.promotionQuota, language)}</strong><small>{ledgerKind === "power" ? "POWER" : "U"}</small></div>
+              <div><strong>{ledgerKind === "power" ? fixed(snapshot.power, language, 4) : compact(snapshot.promotionQuota, language)}</strong><small>{ledgerKind === "power" ? "POWER" : "U"}</small></div>
               <p>{ledgerKind === "power" ? text("记录质押增加、提现消耗和到期清零", "Staking additions, claim usage, and expirations") : text("记录质押增加和直推奖励消耗", "Staking additions and direct referral usage")}</p>
             </article>
 
@@ -914,10 +918,10 @@ export default function Home() {
           </section>
 
           <section className="metrics-grid" aria-label={text("账户概览", "Account overview")}>
-            <article><span>{text("个人算力", "Personal power")}</span><strong>{compact(snapshot.power, language)}</strong><small>POWER</small></article>
-            <article><span>{text("GPC 销毁量", "GPC burned")}</span><strong>{compact(snapshot.burnedGpc, language, 2)}</strong><small>GPC</small></article>
-            <article><span>{text("全网总算力", "Network power")}</span><strong>{compact(snapshot.totalPower, language)}</strong><small>POWER</small></article>
-            <article><span>{text("订单矿池", "Mining pool")}</span><strong>{compact(snapshot.poolGpc, language)}</strong><small>GPC</small></article>
+            <article><span>{text("个人算力", "Personal power")}</span><strong>{fixed(snapshot.power, language, 4)}</strong><small>POWER</small></article>
+            <article><span>{text("GPC 销毁量", "GPC burned")}</span><strong>{compact(snapshot.burnedGpc, language, 0)}</strong><small>GPC</small></article>
+            <article><span>{text("全网总算力", "Network power")}</span><strong>{compact(snapshot.totalPower, language, 0)}</strong><small>POWER</small></article>
+            <article><span>{text("订单矿池", "Mining pool")}</span><strong>{compact(snapshot.poolGpc, language, 0)}</strong><small>GPC</small></article>
           </section>
         </div>
 
@@ -950,7 +954,7 @@ export default function Home() {
           </article>
           <article className="order-info-card">
             <div><span>{text("质押间隔", "Stake interval")}</span><strong>{text("1 分钟", "1 minute")}</strong></div>
-            <button className="order-info-link" onClick={() => openLedger("power")} disabled={!account}><span>{text("个人算力", "Personal power")}</span><strong>{compact(snapshot.power, language)}</strong><DappIcon name="chevron" size={12} /></button>
+            <button className="order-info-link" onClick={() => openLedger("power")} disabled={!account}><span>{text("个人算力", "Personal power")}</span><strong>{fixed(snapshot.power, language, 4)}</strong><DappIcon name="chevron" size={12} /></button>
             <button className="order-info-link" onClick={() => openLedger("promotionQuota")} disabled={!account}><span>{text("推广额度", "Referral quota")}</span><strong>{compact(snapshot.promotionQuota, language)} U</strong><DappIcon name="chevron" size={12} /></button>
           </article>
         </div>
