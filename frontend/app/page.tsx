@@ -259,14 +259,14 @@ async function getLogsInRanges(provider: JsonRpcProvider, topics: Array<string |
   return logs;
 }
 
-function claimTotals(staticUsdt: bigint, dynamicUsdt: bigint, netGpc: bigint, gpcPrice: bigint): ClaimTotals {
+function claimTotals(staticUsdt: bigint, dynamicUsdt: bigint, grossGpc: bigint): ClaimTotals {
   const rewardUsdt = staticUsdt + dynamicUsdt;
-  const staticGpc = rewardUsdt === 0n ? 0n : netGpc * staticUsdt / rewardUsdt;
+  const staticGpc = rewardUsdt === 0n ? 0n : grossGpc * staticUsdt / rewardUsdt;
   return {
-    gpc: netGpc,
-    usdt: netGpc * gpcPrice / 10n ** 18n,
+    gpc: grossGpc,
+    usdt: rewardUsdt,
     staticGpc,
-    dynamicGpc: netGpc - staticGpc,
+    dynamicGpc: grossGpc - staticGpc,
   };
 }
 
@@ -283,8 +283,7 @@ function claimFromReceipt(receipt: unknown, beneficiary: string): ClaimTotals | 
       return claimTotals(
         parsed.args.staticRewardUsdt as bigint,
         parsed.args.communityRewardUsdt as bigint,
-        parsed.args.netGpc as bigint,
-        parsed.args.gpcPrice as bigint,
+        parsed.args.grossGpc as bigint,
       );
     } catch {
       // Ignore unrelated logs in the same transaction receipt.
@@ -319,8 +318,7 @@ async function loadTodayClaims(account: string) {
     const claim = claimTotals(
       parsed.args.staticRewardUsdt as bigint,
       parsed.args.communityRewardUsdt as bigint,
-      parsed.args.netGpc as bigint,
-      parsed.args.gpcPrice as bigint,
+      parsed.args.grossGpc as bigint,
     );
 
     return {
@@ -969,7 +967,7 @@ export default function Home() {
           <section className="balance-card" aria-label={text("今日已领取", "Claimed today")}>
             <div className="balance-topline">
               <span>{text("今日已领取", "Claimed today")}</span>
-              <span className={`mode-chip ${todayClaimsError ? "error" : ""}`}>{todayClaimsError ? text("读取失败", "Read failed") : text("链上到账", "On-chain settled")}</span>
+              <span className={`mode-chip ${todayClaimsError ? "error" : ""}`}>{todayClaimsError ? text("读取失败", "Read failed") : text("全部收益", "Gross rewards")}</span>
             </div>
             <div className="main-balance"><strong>{todayClaimsError ? "--" : compact(snapshot.claimedTodayGpc, language, 4)}</strong><span>GPC</span></div>
             <p>≈ {todayClaimsError ? "--" : compact(snapshot.claimedTodayUsdt, language, 4)} USDT</p>

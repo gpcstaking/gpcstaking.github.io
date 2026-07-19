@@ -31,7 +31,7 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(html, /今日社区已收益/);
   assert.match(html, /今日尚未领取社区收益/);
   assert.match(html, /今日已领取/);
-  assert.match(html, /链上到账/);
+  assert.match(html, /全部收益/);
   assert.match(html, /个人收益/);
   assert.match(html, /社区收益/);
   assert.match(html, /GPC 销毁量/);
@@ -91,6 +91,8 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /直推奖励消耗/);
   assert.match(source, /loadTodayClaims/);
   assert.match(source, /claimFromReceipt\(receipt, confirmedBeneficiary\)/);
+  assert.match(source, /parsed\.args\.grossGpc as bigint/);
+  assert.match(source, /usdt: rewardUsdt/);
   assert.match(source, /confirmedClaims\?\.gpc \?\? 0n/);
   assert.match(source, /confirmedClaims && confirmedClaims\.gpc > todayClaims\.gpc/);
   assert.match(source, /claimedTodayGpc: confirmedClaims\.gpc/);
