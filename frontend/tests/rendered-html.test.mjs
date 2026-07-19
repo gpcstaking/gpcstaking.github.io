@@ -89,6 +89,11 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /180 天未提现清零/);
   assert.match(source, /直推奖励消耗/);
   assert.match(source, /loadTodayClaims/);
+  assert.match(source, /claimFromReceipt\(receipt, confirmedBeneficiary\)/);
+  assert.match(source, /confirmedClaims\?\.gpc \?\? 0n/);
+  assert.match(source, /confirmedClaims && confirmedClaims\.gpc > todayClaims\.gpc/);
+  assert.match(source, /claimedTodayGpc: confirmedClaims\.gpc/);
+  assert.match(source, /成功，其他链上数据稍后刷新/);
   assert.match(source, /claimedTodayGpc/);
   assert.match(source, /claimedTodayStaticGpc/);
   assert.match(source, /claimedTodayDynamicGpc/);
@@ -130,6 +135,7 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /approve\.estimateGas/);
   assert.match(source, /placeOrder\.estimateGas/);
   assert.match(source, /withdraw\.estimateGas/);
+  assert.match(source, /canWithdraw \? text\("当前可领取", "Available now"\)/);
   assert.match(source, /0xf85bf639/);
   assert.match(source, /根节点钱包不能参与质押，请切换其他钱包/);
   assert.match(source, /0x613f0ee7/);

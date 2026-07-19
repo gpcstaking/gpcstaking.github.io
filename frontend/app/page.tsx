@@ -131,6 +131,12 @@ type LedgerEntry = {
 };
 type Language = "zh" | "en";
 type LocalizedStatus = { zh: string; en: string };
+type ClaimTotals = {
+  gpc: bigint;
+  usdt: bigint;
+  staticGpc: bigint;
+  dynamicGpc: bigint;
+};
 
 const MINING_INTERFACE = new Interface(MINING_ABI);
 
@@ -253,8 +259,42 @@ async function getLogsInRanges(provider: JsonRpcProvider, topics: Array<string |
   return logs;
 }
 
+function claimTotals(staticUsdt: bigint, dynamicUsdt: bigint, netGpc: bigint, gpcPrice: bigint): ClaimTotals {
+  const rewardUsdt = staticUsdt + dynamicUsdt;
+  const staticGpc = rewardUsdt === 0n ? 0n : netGpc * staticUsdt / rewardUsdt;
+  return {
+    gpc: netGpc,
+    usdt: netGpc * gpcPrice / 10n ** 18n,
+    staticGpc,
+    dynamicGpc: netGpc - staticGpc,
+  };
+}
+
+function claimFromReceipt(receipt: unknown, beneficiary: string): ClaimTotals | null {
+  if (!receipt || typeof receipt !== "object") return null;
+  const logs = (receipt as { logs?: Array<{ topics?: readonly string[]; data?: string }> }).logs;
+  if (!logs) return null;
+
+  for (const log of logs) {
+    if (!log.topics || !log.data) continue;
+    try {
+      const parsed = MINING_INTERFACE.parseLog({ topics: log.topics, data: log.data });
+      if (!parsed || parsed.name !== "Withdrawn" || String(parsed.args.user).toLowerCase() !== beneficiary.toLowerCase()) continue;
+      return claimTotals(
+        parsed.args.staticRewardUsdt as bigint,
+        parsed.args.communityRewardUsdt as bigint,
+        parsed.args.netGpc as bigint,
+        parsed.args.gpcPrice as bigint,
+      );
+    } catch {
+      // Ignore unrelated logs in the same transaction receipt.
+    }
+  }
+  return null;
+}
+
 async function loadTodayClaims(account: string) {
-  const empty = { gpc: 0n, usdt: 0n, staticGpc: 0n, dynamicGpc: 0n };
+  const empty: ClaimTotals = { gpc: 0n, usdt: 0n, staticGpc: 0n, dynamicGpc: 0n };
   const latestBlock = await HISTORY_PROVIDER.getBlock("latest");
   if (!latestBlock) return empty;
 
@@ -276,19 +316,18 @@ async function loadTodayClaims(account: string) {
     const parsed = MINING_INTERFACE.parseLog(log);
     if (!parsed) return total;
 
-    const staticUsdt = parsed.args.staticRewardUsdt as bigint;
-    const dynamicUsdt = parsed.args.communityRewardUsdt as bigint;
-    const netGpc = parsed.args.netGpc as bigint;
-    const gpcPrice = parsed.args.gpcPrice as bigint;
-    const rewardUsdt = staticUsdt + dynamicUsdt;
-    const staticGpc = rewardUsdt === 0n ? 0n : netGpc * staticUsdt / rewardUsdt;
-    const dynamicGpc = netGpc - staticGpc;
+    const claim = claimTotals(
+      parsed.args.staticRewardUsdt as bigint,
+      parsed.args.communityRewardUsdt as bigint,
+      parsed.args.netGpc as bigint,
+      parsed.args.gpcPrice as bigint,
+    );
 
     return {
-      gpc: total.gpc + netGpc,
-      usdt: total.usdt + netGpc * gpcPrice / 10n ** 18n,
-      staticGpc: total.staticGpc + staticGpc,
-      dynamicGpc: total.dynamicGpc + dynamicGpc,
+      gpc: total.gpc + claim.gpc,
+      usdt: total.usdt + claim.usdt,
+      staticGpc: total.staticGpc + claim.staticGpc,
+      dynamicGpc: total.dynamicGpc + claim.dynamicGpc,
     };
   }, empty);
 }
@@ -402,6 +441,13 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    const updateCurrentTime = () => setCurrentTime(Math.floor(Date.now() / 1000));
+    updateCurrentTime();
+    const timer = window.setInterval(updateCurrentTime, 1_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   function toggleLanguage() {
     const nextLanguage: Language = language === "zh" ? "en" : "zh";
     setLanguage(nextLanguage);
@@ -488,7 +534,7 @@ export default function Home() {
     };
   }, []);
 
-  const refresh = useCallback(async (activeProvider: BrowserProvider, activeAccount: string) => {
+  const refresh = useCallback(async (activeProvider: BrowserProvider, activeAccount: string, confirmedClaims?: ClaimTotals) => {
     const refreshId = ++refreshSequence.current;
     if (!isConfigured) {
       setStatus({ zh: "等待配置已部署的挖矿合约地址", en: "Waiting for the deployed mining contract address" });
@@ -550,10 +596,10 @@ export default function Home() {
       communityClaimedToday,
       totalReward: reward?.totalRewardUsdt ?? 0n,
       grossGpc: reward?.grossGpc ?? 0n,
-      claimedTodayGpc: 0n,
-      claimedTodayUsdt: 0n,
-      claimedTodayStaticGpc: 0n,
-      claimedTodayDynamicGpc: 0n,
+      claimedTodayGpc: confirmedClaims?.gpc ?? 0n,
+      claimedTodayUsdt: confirmedClaims?.usdt ?? 0n,
+      claimedTodayStaticGpc: confirmedClaims?.staticGpc ?? 0n,
+      claimedTodayDynamicGpc: confirmedClaims?.dynamicGpc ?? 0n,
       smallArea: community.smallArea,
       effectiveSmallArea: community.effectiveSmallArea,
       poolLimitedMode: reward?.poolLimitedMode ?? false,
@@ -565,16 +611,17 @@ export default function Home() {
     });
     void todayClaimsPromise.then(todayClaims => {
       if (refreshSequence.current !== refreshId) return;
+      const settledClaims = confirmedClaims && confirmedClaims.gpc > todayClaims.gpc ? confirmedClaims : todayClaims;
       setSnapshot(current => ({
         ...current,
-        claimedTodayGpc: todayClaims.gpc,
-        claimedTodayUsdt: todayClaims.usdt,
-        claimedTodayStaticGpc: todayClaims.staticGpc,
-        claimedTodayDynamicGpc: todayClaims.dynamicGpc,
+        claimedTodayGpc: settledClaims.gpc,
+        claimedTodayUsdt: settledClaims.usdt,
+        claimedTodayStaticGpc: settledClaims.staticGpc,
+        claimedTodayDynamicGpc: settledClaims.dynamicGpc,
       }));
     }).catch(() => {
       if (refreshSequence.current !== refreshId) return;
-      setTodayClaimsError(true);
+      if (!confirmedClaims) setTodayClaimsError(true);
     });
     setCurrentTime(Math.floor(Date.now() / 1000));
     setStatus(oracleReady
@@ -654,7 +701,11 @@ export default function Home() {
     });
   }
 
-  async function runTransaction(label: LocalizedStatus, action: (signer: Awaited<ReturnType<BrowserProvider["getSigner"]>>) => Promise<{ wait: () => Promise<unknown> }>) {
+  async function runTransaction(
+    label: LocalizedStatus,
+    action: (signer: Awaited<ReturnType<BrowserProvider["getSigner"]>>) => Promise<{ wait: () => Promise<unknown> }>,
+    confirmedBeneficiary?: string,
+  ) {
     if (!provider || !account) {
       await connectWallet();
       return false;
@@ -671,8 +722,26 @@ export default function Home() {
       }
       const transaction = await action(signer);
       setStatus({ zh: `${label.zh}：等待链上确认`, en: `${label.en}: waiting for confirmation` });
-      await transaction.wait();
-      await refresh(provider, account);
+      const receipt = await transaction.wait();
+      const confirmedClaims = confirmedBeneficiary?.toLowerCase() === account.toLowerCase()
+        ? claimFromReceipt(receipt, confirmedBeneficiary)
+        : null;
+      if (confirmedClaims) {
+        setTodayClaimsError(false);
+        setSnapshot(current => ({
+          ...current,
+          claimedTodayGpc: confirmedClaims.gpc,
+          claimedTodayUsdt: confirmedClaims.usdt,
+          claimedTodayStaticGpc: confirmedClaims.staticGpc,
+          claimedTodayDynamicGpc: confirmedClaims.dynamicGpc,
+        }));
+      }
+      try {
+        await refresh(provider, account, confirmedClaims ?? undefined);
+      } catch {
+        setStatus({ zh: `${label.zh}成功，其他链上数据稍后刷新`, en: `${label.en} successful; refresh other on-chain data shortly` });
+        return true;
+      }
       setStatus({ zh: `${label.zh}成功`, en: `${label.en} successful` });
       return true;
     } catch (error) {
@@ -773,7 +842,7 @@ export default function Home() {
       const mining = new Contract(MINING_ADDRESS, MINING_ABI, signer);
       const estimatedGas = await mining.withdrawFor.estimateGas(serviceBeneficiary);
       return mining.withdrawFor(serviceBeneficiary, { gasLimit: gasLimitWithHeadroom(estimatedGas) });
-    });
+    }, serviceBeneficiary);
   }
 
   function withdraw() {
@@ -781,7 +850,7 @@ export default function Home() {
       const mining = new Contract(MINING_ADDRESS, MINING_ABI, signer);
       const estimatedGas = await mining.withdraw.estimateGas();
       return mining.withdraw({ gasLimit: gasLimitWithHeadroom(estimatedGas) });
-    });
+    }, account);
   }
 
   function switchTab(tab: AppTab) {
@@ -913,7 +982,7 @@ export default function Home() {
               <DappIcon name="withdraw" size={18} />{text("领取收益", "Claim rewards")}
             </button>
             <div className="countdown-line"><span>{text("提现分配", "Claim allocation")}</span><strong>{text("90% 到账 · 5% 销毁 · 5% 运营", "90% net · 5% burn · 5% operations")}</strong></div>
-            <div className="countdown-line"><span>{text("下次可领取", "Next claim")}</span><strong>{formatTime(snapshot.nextWithdrawAt, language)}</strong></div>
+            <div className="countdown-line"><span>{text("下次可领取", "Next claim")}</span><strong>{canWithdraw ? text("当前可领取", "Available now") : formatTime(snapshot.nextWithdrawAt, language)}</strong></div>
             <span className="card-glow" />
           </section>
 
