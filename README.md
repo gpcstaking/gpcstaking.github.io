@@ -26,7 +26,7 @@ The proxy separates permissions:
 - Oracle keeper service: Cloudflare Worker `gpc-oracle-keeper`, checking once per minute and writing only when the five-minute observation is due
 - Rolling Oracle upgrade: `2026-07-17 18:07:31 CST`
 - Mining proxy: `0x7C7C849734ea94a590266F90B5fD63D555ed3ca3`
-- Mining implementation: `0x9dE24BFbaf03fec32608DAAa66fE73ee0f9941fc`
+- Mining implementation: `0xe524DEfA6E67E7c7a02f045e48333CEF257CB435`
 - On-chain history proxy: `0x7FA470657148AeB586113968B7A427C734293DD0`
 - On-chain history implementation: `0xfc7D11563de08a97D5646664D8aF3491e5e4e4A8`
 - On-chain history ProxyAdmin: `0x9Dabe9298FCF022BD9374ee75210065018E8a482`
