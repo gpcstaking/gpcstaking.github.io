@@ -17,7 +17,7 @@ The 1,000 USDT is distributed atomically:
 - One fourteenth of purchased GPC and all purchased WBNB are added to the GPC/WBNB pool. LP tokens go to the operation wallet.
 - The remaining purchased GPC enters the accounted mining pool.
 
-Both swaps are bounded to 2% below the six-hour TWAP and expire within five minutes. Before signing, the DApp also reads the current Pancake quote and supplies a stricter 0.5% user floor; the contract uses the higher of the user and TWAP floors. Liquidity inputs use a 2% bound.
+Both swaps are bounded to 2% below the six-hour TWAP and expire within one minute. Before signing, the DApp also reads the current Pancake quote and supplies a stricter 0.3% user floor; the contract uses the higher of the user and TWAP floors. Liquidity inputs use a 2% bound.
 
 Before either swap, current GPC/USDT and WBNB/USDT reserve prices are compared with their six-hour TWAPs. If either absolute deviation exceeds 1%, the whole order reverts before funds are retained. These checks tightly bound sandwich loss but do not make public-mempool execution MEV-free. Configure a client-safe protected BSC RPC in the DApp and verify the selected wallet network. Direct BscScan users may call the one-argument `placeOrder(deadline)` entry, which keeps the contract TWAP and 1% spot guard but cannot add the DApp's stricter pre-signing quote.
 

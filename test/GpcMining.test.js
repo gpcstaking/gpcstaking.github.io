@@ -69,7 +69,7 @@ describe('GpcMiningCore', function () {
 
     async function bindAndOrder(user, parent) {
       await mining.connect(user).bindReferral(parent.address);
-      const deadline = (await time.latest()) + 300;
+      const deadline = (await time.latest()) + 60;
       return mining.connect(user).placeOrder(...orderArgs(deadline));
     }
 
@@ -120,7 +120,7 @@ describe('GpcMiningCore', function () {
     await usdt.connect(operation).approve(mining.target, e('1'));
 
     await expect(
-      mining.connect(operation).placeOrder(...orderArgs((await time.latest()) + 300))
+      mining.connect(operation).placeOrder(...orderArgs((await time.latest()) + 60))
     ).to.emit(mining, 'OrderPlaced')
       .withArgs(
         operation.address,
@@ -269,7 +269,7 @@ describe('GpcMiningCore', function () {
 
     for (let i = 1; i < 31; ++i) {
       await time.increase(61);
-      await mining.connect(alice).placeOrder(...orderArgs((await time.latest()) + 300));
+      await mining.connect(alice).placeOrder(...orderArgs((await time.latest()) + 60));
     }
 
     const [powerRecords, powerTotal] = await history.powerHistory(alice.address, 0, 30);
@@ -373,7 +373,7 @@ describe('GpcMiningCore', function () {
     expect(lateQuote.totalRewardUsdt).to.equal(firstQuote.totalRewardUsdt);
 
     await oracle.setPrices(e('0.1'), e('500'));
-    await mining.connect(alice).placeOrder(...orderArgs((await time.latest()) + 300));
+    await mining.connect(alice).placeOrder(...orderArgs((await time.latest()) + 60));
     await expect(mining.connect(alice).withdraw()).to.be.revertedWithCustomError(mining, 'WithdrawCooldownActive');
   });
 
@@ -382,7 +382,7 @@ describe('GpcMiningCore', function () {
 
     await bindAndOrder(alice, operation);
     await time.increase(179 * 24 * 60 * 60);
-    await mining.connect(alice).placeOrder(...orderArgs((await time.latest()) + 300));
+    await mining.connect(alice).placeOrder(...orderArgs((await time.latest()) + 60));
     expect((await mining.users(alice.address)).power).to.equal(e('4'));
 
     await time.increase(24 * 60 * 60);
@@ -438,7 +438,7 @@ describe('GpcMiningCore', function () {
     await mining.connect(alice).bindReferral(operation.address);
     await router.setRate(usdt.target, gpc.target, e('9'));
 
-    await expect(mining.connect(alice).placeOrder(...orderArgs((await time.latest()) + 300))).to.be.revertedWith('INSUFFICIENT_OUTPUT');
+    await expect(mining.connect(alice).placeOrder(...orderArgs((await time.latest()) + 60))).to.be.revertedWith('INSUFFICIENT_OUTPUT');
   });
 
   it('enforces a maximum referral depth of 30', async function () {
@@ -477,7 +477,7 @@ describe('GpcMiningCore', function () {
     await bindAndOrder(alice, operation);
     await bindAndOrder(bob, alice);
     await time.increase(61);
-    await mining.connect(bob).placeOrder(...orderArgs((await time.latest()) + 300));
+    await mining.connect(bob).placeOrder(...orderArgs((await time.latest()) + 60));
     await bindAndOrder(carol, alice);
 
     let community = await mining.communityPower(alice.address);
@@ -497,7 +497,7 @@ describe('GpcMiningCore', function () {
     const { operation, alice, mining } = await loadFixture(deployFixture);
     await mining.connect(alice).bindReferral(operation.address);
 
-    const deadline = (await time.latest()) + 300;
+    const deadline = (await time.latest()) + 60;
     await expect(
       mining.connect(alice).placeOrder(...orderArgs(deadline, e('7.001')))
     ).to.be.revertedWith('INSUFFICIENT_OUTPUT');
@@ -509,7 +509,7 @@ describe('GpcMiningCore', function () {
 
     await expect(
       mining.connect(alice).placeOrder(
-        ...orderArgs((await time.latest()) + 300, e('6.999'), e('0.000099'), e('0.49'), e('0.000098'))
+        ...orderArgs((await time.latest()) + 60, e('6.999'), e('0.000099'), e('0.49'), e('0.000098'))
       )
     ).to.emit(mining, 'OrderPlaced');
   });
@@ -519,8 +519,17 @@ describe('GpcMiningCore', function () {
     await mining.connect(alice).bindReferral(operation.address);
 
     await expect(
-      mining.connect(alice)['placeOrder(uint256)']((await time.latest()) + 300)
+      mining.connect(alice)['placeOrder(uint256)']((await time.latest()) + 60)
     ).to.emit(mining, 'OrderPlaced');
+  });
+
+  it('rejects order deadlines more than one minute in the future', async function () {
+    const { operation, alice, mining } = await loadFixture(deployFixture);
+    await mining.connect(alice).bindReferral(operation.address);
+
+    await expect(
+      mining.connect(alice).placeOrder(...orderArgs((await time.latest()) + 120))
+    ).to.be.revertedWithCustomError(mining, 'InvalidDeadline');
   });
 
   it('rejects an order when the spot price deviates over 1% from the TWAP', async function () {
@@ -529,7 +538,7 @@ describe('GpcMiningCore', function () {
     await gpcPair.setReserves(e('10000'), e('2.2'));
 
     await expect(
-      mining.connect(alice).placeOrder(...orderArgs((await time.latest()) + 300))
+      mining.connect(alice).placeOrder(...orderArgs((await time.latest()) + 60))
     ).to.be.revertedWithCustomError(mining, 'SpotTwapDeviationTooHigh')
       .withArgs(gpc.target, e('0.11'), e('0.1'));
   });
@@ -541,7 +550,7 @@ describe('GpcMiningCore', function () {
     await usdtPair.setReserves(e('51000'), e('100'));
 
     await expect(
-      mining.connect(alice).placeOrder(...orderArgs((await time.latest()) + 300))
+      mining.connect(alice).placeOrder(...orderArgs((await time.latest()) + 60))
     ).to.be.revertedWithCustomError(mining, 'SpotTwapDeviationTooHigh')
       .withArgs(wbnb.target, e('510'), e('500'));
   });

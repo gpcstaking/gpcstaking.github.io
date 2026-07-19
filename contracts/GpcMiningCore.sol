@@ -45,7 +45,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     uint256 public constant ORDER_COOLDOWN = 1 minutes;
     uint256 public constant WITHDRAW_COOLDOWN = 24 hours;
     uint256 public constant INACTIVITY_PERIOD = 180 days;
-    uint256 public constant MAX_DEADLINE_WINDOW = 5 minutes;
+    uint256 public constant MAX_DEADLINE_WINDOW = 1 minutes;
     uint256 public constant MAX_REFERRAL_DEPTH = 30;
     uint256 public constant MAX_EXPIRE_BATCH = 50;
     uint256 private constant MAX_AUTO_EXPIRE_BATCH = 20;
@@ -268,7 +268,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
 
     /**
      * @notice Places exactly one 1 USDT test-stage order.
-     * @param deadline A caller-chosen expiry no more than five minutes in the future.
+     * @param deadline A caller-chosen expiry no more than one minute in the future.
      * @param userMinGpcOut User-quoted GPC floor; zero keeps only the contract TWAP floor.
      * @param userMinWbnbOut User-quoted WBNB floor; zero keeps only the contract TWAP floor.
      * @param userMinLpGpc Minimum GPC accepted into LP.

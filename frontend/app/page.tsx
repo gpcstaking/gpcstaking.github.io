@@ -76,7 +76,8 @@ const BPS = 10_000n;
 const MINING_DEPLOYMENT_BLOCK = 110_493_189;
 const LOG_QUERY_BLOCK_SPAN = 50_000;
 const HISTORY_PROVIDER = new JsonRpcProvider("https://bsc.rpc.blxrbdn.com", 56, { staticNetwork: true, batchMaxCount: 1 });
-const USER_SWAP_SLIPPAGE_BPS = 50n; // 0.5% from the pre-signing router quote
+const USER_SWAP_SLIPPAGE_BPS = 30n; // 0.3% from the pre-signing router quote
+const ORDER_DEADLINE_SECONDS = 60;
 const LP_SLIPPAGE_BPS = 200n;
 const TRANSACTION_GAS_HEADROOM_BPS = 3_000n; // BSC estimation can underfund nested contract calls
 
@@ -654,7 +655,7 @@ export default function Home() {
       const minWbnbOut = quotedWbnb * (BPS - USER_SWAP_SLIPPAGE_BPS) / BPS;
       const minLpGpc = (quotedGpc / 14n) * (BPS - LP_SLIPPAGE_BPS) / BPS;
       const minLpWbnb = quotedWbnb * (BPS - LP_SLIPPAGE_BPS) / BPS;
-      const deadline = Math.floor(Date.now() / 1000) + 300;
+      const deadline = Math.floor(Date.now() / 1000) + ORDER_DEADLINE_SECONDS;
       await mining.placeOrder.staticCall(deadline, minGpcOut, minWbnbOut, minLpGpc, minLpWbnb);
       const estimatedGas = await mining.placeOrder.estimateGas(deadline, minGpcOut, minWbnbOut, minLpGpc, minLpWbnb);
       return mining.placeOrder(deadline, minGpcOut, minWbnbOut, minLpGpc, minLpWbnb, { gasLimit: gasLimitWithHeadroom(estimatedGas) });
