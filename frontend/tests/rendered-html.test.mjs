@@ -34,6 +34,7 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(html, /链上到账/);
   assert.match(html, /动态收益/);
   assert.match(html, /GPC 销毁量/);
+  assert.match(html, /90% 到账 · 5% 销毁 · 5% 运营/);
   assert.doesNotMatch(html, /今日可领取|今日预计/);
   assert.match(html, /aria-label="切换为英文">EN</);
   assert.match(html, /GPC首个链游—GPC传奇/);
@@ -112,6 +113,7 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /serviceMode \|\| activeTab/);
   assert.match(source, /bindingRequired && !serviceMode/);
   assert.match(source, /任何钱包均可为已绑定用户代报单或代提现/);
+  assert.match(source, /90% 到目标钱包，5% 销毁，5% 到运营钱包/);
   assert.match(source, /当前钱包支付 1 USDT/);
   assert.match(source, /<article className="service-action-card withdraw-card">/);
   assert.match(source, /https:\/\/bscrpc\.pancakeswap\.finance/);

@@ -3,6 +3,7 @@ const { ethers, upgrades } = require('hardhat');
 const { loadFixture, time } = require('@nomicfoundation/hardhat-network-helpers');
 
 const e = ethers.parseEther;
+const DEAD_ADDRESS = '0x000000000000000000000000000000000000dEaD';
 const orderArgs = (deadline, minGpc = 0n, minWbnb = 0n, minLpGpc = 0n, minLpWbnb = 0n) => [
   deadline,
   minGpc,
@@ -177,15 +178,18 @@ describe('GpcMiningCore', function () {
     await time.increase(24 * 60 * 60);
     const quote = await mining.quoteRewards(alice.address);
     const fee = quote.grossGpc / 10n;
+    const burn = quote.grossGpc / 20n;
     const beneficiaryBefore = await gpc.balanceOf(alice.address);
     const operationBefore = await gpc.balanceOf(operation.address);
     const callerBefore = await gpc.balanceOf(bob.address);
+    const burnedBefore = await gpc.balanceOf(DEAD_ADDRESS);
 
     await expect(mining.connect(bob).withdrawFor(alice.address))
       .to.emit(mining, 'Withdrawn');
 
     expect(await gpc.balanceOf(alice.address)).to.equal(beneficiaryBefore + quote.grossGpc - fee);
-    expect(await gpc.balanceOf(operation.address)).to.equal(operationBefore + fee);
+    expect(await gpc.balanceOf(DEAD_ADDRESS)).to.equal(burnedBefore + burn);
+    expect(await gpc.balanceOf(operation.address)).to.equal(operationBefore + fee - burn);
     expect(await gpc.balanceOf(bob.address)).to.equal(callerBefore);
     await expect(mining.connect(bob).withdrawFor(alice.address))
       .to.be.revertedWithCustomError(mining, 'WithdrawCooldownActive');
@@ -289,7 +293,8 @@ describe('GpcMiningCore', function () {
     await time.increase(24 * 60 * 60);
     await expect(mining.connect(alice).withdraw()).to.emit(mining, 'Withdrawn');
     expect(await gpc.balanceOf(alice.address)).to.equal(e('0.04725'));
-    expect(await gpc.balanceOf(operation.address)).to.equal(e('0.00525'));
+    expect(await gpc.balanceOf(DEAD_ADDRESS)).to.equal(e('0.002625'));
+    expect(await gpc.balanceOf(operation.address)).to.equal(e('0.002625'));
     expect((await mining.users(alice.address)).power).to.equal(e('1.99475'));
     expect(await mining.communityClaimedToday(alice.address)).to.equal(e('0.00025'));
     const storedCommunityEarnings = await mining.dailyCommunityEarnings(alice.address);

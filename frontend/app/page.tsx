@@ -851,7 +851,7 @@ export default function Home() {
                 </article>
 
                 <article className="service-action-card withdraw-card">
-                  <div className="service-action-title"><span className="heading-icon"><DappIcon name="withdraw" size={17} /></span><div><strong>{text("代提现", "Assisted claim")}</strong><small>{text("按目标用户的 24 小时周期结算，手续费到运营钱包，净 GPC 到目标钱包", "Uses the beneficiary's 24-hour cycle; the fee goes to operations and net GPC goes to the beneficiary")}</small></div></div>
+                  <div className="service-action-title"><span className="heading-icon"><DappIcon name="withdraw" size={17} /></span><div><strong>{text("代提现", "Assisted claim")}</strong><small>{text("90% 到目标钱包，5% 销毁，5% 到运营钱包", "90% goes to the beneficiary, 5% is burned, and 5% goes to operations")}</small></div></div>
                   <button className="service-action-button secondary" onClick={serviceWithdraw} disabled={busy || !isAddress(serviceBeneficiary)}>{text("确认代提现", "Confirm assisted claim")}</button>
                 </article>
               </>
@@ -908,6 +908,7 @@ export default function Home() {
             <button className="claim-button" onClick={withdraw} disabled={busy || !account || !canWithdraw || snapshot.totalReward === 0n}>
               <DappIcon name="withdraw" size={18} />{text("领取收益", "Claim rewards")}
             </button>
+            <div className="countdown-line"><span>{text("提现分配", "Claim allocation")}</span><strong>{text("90% 到账 · 5% 销毁 · 5% 运营", "90% net · 5% burn · 5% operations")}</strong></div>
             <div className="countdown-line"><span>{text("下次可领取", "Next claim")}</span><strong>{formatTime(snapshot.nextWithdrawAt, language)}</strong></div>
             <span className="card-glow" />
           </section>

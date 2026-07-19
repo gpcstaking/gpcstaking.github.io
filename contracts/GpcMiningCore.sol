@@ -35,7 +35,8 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     uint256 public constant FIXED_DAILY_RATE_BPS = 25; // 0.25%
     uint256 public constant COMMUNITY_RATE_BPS = 500; // 5%
     uint256 public constant MAX_DAILY_RATE_BPS = 50; // 0.50%, static + community
-    uint256 public constant WITHDRAW_FEE_BPS = 1_000; // 10%
+    uint256 public constant WITHDRAW_FEE_BPS = 1_000; // 10% total: 5% burn + 5% operations
+    uint256 private constant WITHDRAW_BURN_BPS = 500; // 5%
     uint256 public constant MAX_WITHDRAW_POOL_BPS = 100; // 1%
     uint256 public constant MAX_GLOBAL_DAILY_WITHDRAW_POOL_BPS = 200; // 2% of window-opening pool
     uint256 public constant SWAP_SLIPPAGE_BPS = 200; // 2% TWAP floor
@@ -53,6 +54,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     uint8 private constant POWER_HISTORY_EXPIRED = 3;
     uint8 private constant QUOTA_HISTORY_ORDER = 1;
     uint8 private constant QUOTA_HISTORY_REFERRAL = 2;
+    address private constant BURN_ADDRESS = 0x000000000000000000000000000000000000dEaD;
 
     struct UserInfo {
         uint256 power;
@@ -419,6 +421,8 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         _consumeGlobalWithdrawCapacity(quote.grossGpc);
 
         uint256 feeGpc = Math.mulDiv(quote.grossGpc, WITHDRAW_FEE_BPS, BPS);
+        uint256 burnGpc = Math.mulDiv(quote.grossGpc, WITHDRAW_BURN_BPS, BPS);
+        uint256 operationGpc = feeGpc - burnGpc;
         uint256 netGpc = quote.grossGpc - feeGpc;
         _recordCommunityEarnings(account, quote.communityRewardUsdt);
 
@@ -436,7 +440,8 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         miningPoolGpc -= quote.grossGpc;
 
         gpc.safeTransfer(account, netGpc);
-        gpc.safeTransfer(operationWallet, feeGpc);
+        gpc.safeTransfer(BURN_ADDRESS, burnGpc);
+        gpc.safeTransfer(operationWallet, operationGpc);
 
         emit Withdrawn(
             account,
