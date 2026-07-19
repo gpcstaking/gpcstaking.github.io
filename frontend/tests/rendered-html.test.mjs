@@ -50,10 +50,9 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(html, /10%.*筑 LP/);
   assert.match(html, /20%.*直推/);
   assert.match(html, /70%.*质押矿池/);
-  assert.match(html, /测试阶段每次固定质押 1 USDT/);
-  assert.match(html, /\+2 算力/);
-  assert.match(html, /\+1 U 推广额度/);
-  assert.doesNotMatch(html, /授权 1,000 USDT/);
+  assert.match(html, /每次固定质押 1000 USDT/);
+  assert.match(html, /\+2000 算力/);
+  assert.match(html, /\+1000 U 推广额度/);
   assert.doesNotMatch(html, /安全与风控|固定报单/);
   assert.doesNotMatch(html, /class="quick-actions"/);
   assert.match(html, /class="bottom-nav"/);
@@ -62,9 +61,11 @@ test("server-renders the GPC mining application shell", async () => {
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
 
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
-  assert.match(source, /const ORDER_AMOUNT = 1n \* 10n \*\* 18n/);
+  assert.match(source, /const ORDER_AMOUNT = 1_000n \* 10n \*\* 18n/);
+  assert.match(source, /const GPC_SWAP_AMOUNT = 700n \* 10n \*\* 18n/);
+  assert.match(source, /const WBNB_SWAP_AMOUNT = 50n \* 10n \*\* 18n/);
   assert.match(source, /approve\(MINING_ADDRESS, ORDER_AMOUNT,/);
-  assert.match(source, /授权 1 USDT/);
+  assert.match(source, /授权 1000 USDT/);
   assert.match(source, /directReferralCount\(address\)/);
   assert.match(source, /directReferralAt\(address,uint256\)/);
   assert.match(source, /DIRECT_REFERRAL_PAGE_SIZE = 20/);
@@ -126,12 +127,12 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /bindingRequired && !serviceMode/);
   assert.match(source, /任何钱包均可为已绑定用户代报单或代提现/);
   assert.match(source, /90% 到目标钱包，5% 销毁，5% 到运营钱包/);
-  assert.match(source, /当前钱包支付 1 USDT/);
+  assert.match(source, /当前钱包支付 1000 USDT/);
   assert.match(source, /<article className="service-action-card withdraw-card">/);
   assert.match(source, /https:\/\/bscrpc\.pancakeswap\.finance/);
   assert.match(source, /Configured mining address does not match the audited BSC proxy/);
   assert.match(source, /snapshot\.allowance !== ORDER_AMOUNT/);
-  assert.match(source, /调整授权为 1 USDT/);
+  assert.match(source, /调整授权为 1000 USDT/);
   assert.match(source, /TRANSACTION_GAS_HEADROOM_BPS = 3_000n/);
   assert.match(source, /gasLimitWithHeadroom/);
   assert.match(source, /bindReferral\.estimateGas/);
@@ -143,7 +144,7 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /根节点钱包不能参与质押，请切换其他钱包/);
   assert.match(source, /0x613f0ee7/);
   assert.match(source, /0x73c5a6b0/);
-  assert.doesNotMatch(source, /授权 1,000 USDT/);
+  assert.doesNotMatch(source, /授权 1 USDT/);
 
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(styles, /\.binding-modal input[^}]*font-size:\s*16px/s);

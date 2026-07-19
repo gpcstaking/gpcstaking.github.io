@@ -77,9 +77,9 @@ const ROUTER_ABI = [
 ];
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
-const ORDER_AMOUNT = 1n * 10n ** 18n;
-const GPC_SWAP_AMOUNT = 7n * 10n ** 17n;
-const WBNB_SWAP_AMOUNT = 5n * 10n ** 16n;
+const ORDER_AMOUNT = 1_000n * 10n ** 18n;
+const GPC_SWAP_AMOUNT = 700n * 10n ** 18n;
+const WBNB_SWAP_AMOUNT = 50n * 10n ** 18n;
 const BPS = 10_000n;
 const MINING_DEPLOYMENT_BLOCK = 110_493_189;
 const LOG_QUERY_BLOCK_SPAN = 50_000;
@@ -778,7 +778,7 @@ export default function Home() {
   }
 
   function approveUsdt() {
-    return runTransaction({ zh: "授权 1 USDT", en: "Approve 1 USDT" }, async signer => {
+    return runTransaction({ zh: "授权 1000 USDT", en: "Approve 1,000 USDT" }, async signer => {
       const usdt = new Contract(USDT_ADDRESS, ERC20_ABI, signer);
       const estimatedGas = await usdt.approve.estimateGas(MINING_ADDRESS, ORDER_AMOUNT);
       return usdt.approve(MINING_ADDRESS, ORDER_AMOUNT, { gasLimit: gasLimitWithHeadroom(estimatedGas) });
@@ -895,7 +895,7 @@ export default function Home() {
               <article className="service-lock-card">
                 <span className="service-lock-icon"><DappIcon name="shield" size={24} /></span>
                 <strong>{text("连接支付钱包", "Connect payment wallet")}</strong>
-                <p>{text("任何钱包均可支付 1 USDT，为已绑定用户代报单。", "Any wallet can pay 1 USDT to stake for an already-bound beneficiary.")}</p>
+                <p>{text("任何钱包均可支付 1000 USDT，为已绑定用户代报单。", "Any wallet can pay 1,000 USDT to stake for an already-bound beneficiary.")}</p>
                 <button onClick={connectWallet} disabled={busy}>{text("连接钱包", "Connect wallet")}</button>
               </article>
             ) : (
@@ -908,12 +908,12 @@ export default function Home() {
                 </article>
 
                 <article className="service-action-card">
-                  <div className="service-action-title"><span className="heading-icon"><DappIcon name="order" size={17} /></span><div><strong>{text("代报单", "Assisted staking")}</strong><small>{text("当前钱包支付 1 USDT，目标用户获得 2 算力和 1 U 推广额度", "The current wallet pays 1 USDT; the beneficiary receives 2 power and 1 U referral quota")}</small></div></div>
+                  <div className="service-action-title"><span className="heading-icon"><DappIcon name="order" size={17} /></span><div><strong>{text("代报单", "Assisted staking")}</strong><small>{text("当前钱包支付 1000 USDT，目标用户获得 2000 算力和 1000 U 推广额度", "The current wallet pays 1,000 USDT; the beneficiary receives 2,000 power and 1,000 U referral quota")}</small></div></div>
                   <div className="wallet-row"><span>{text("当前钱包 USDT", "Current wallet USDT")}</span><strong>{compact(snapshot.usdtBalance, language)} USDT</strong></div>
                   {!hasEnoughUsdt ? (
                     <button className="service-action-button" disabled>{text("USDT 余额不足", "Insufficient USDT")}</button>
                   ) : needsApproval ? (
-                    <button className="service-action-button" onClick={approveUsdt} disabled={busy}>{snapshot.allowance > ORDER_AMOUNT ? text("调整授权为 1 USDT", "Reset approval to 1 USDT") : text("授权 1 USDT", "Approve 1 USDT")}</button>
+                    <button className="service-action-button" onClick={approveUsdt} disabled={busy}>{snapshot.allowance > ORDER_AMOUNT ? text("调整授权为 1000 USDT", "Reset approval to 1,000 USDT") : text("授权 1000 USDT", "Approve 1,000 USDT")}</button>
                   ) : !snapshot.oracleReady ? (
                     <button className="service-action-button" disabled>{text("价格服务更新中", "Price service updating")}</button>
                   ) : (
@@ -992,10 +992,10 @@ export default function Home() {
         </div>
 
         <div className="tab-page" hidden={serviceMode || activeTab !== "order"}>
-          <div className="page-heading"><span>STAKING</span><h1>{text("GPC质押挖矿", "GPC Staking Mining")}</h1><p>{text("测试阶段每次固定质押 1 USDT，链上自动完成分账并增加算力。", "During testing, stake a fixed 1 USDT. Allocation and mining power are handled on-chain.")}</p></div>
+          <div className="page-heading"><span>STAKING</span><h1>{text("GPC质押挖矿", "GPC Staking Mining")}</h1><p>{text("每次固定质押 1000 USDT，链上自动完成分账并增加算力。", "Stake a fixed 1,000 USDT. Allocation and mining power are handled on-chain.")}</p></div>
           <article className="order-card">
-            <div className="order-value"><span>{text("质押金额", "Stake amount")}</span><div><strong>1</strong><b>USDT</b></div></div>
-            <div className="order-receive"><span>{text("预计获得", "You receive")}</span><strong>{text("+2 算力", "+2 Power")}</strong><strong>{text("+1 U 推广额度", "+1 U Referral quota")}</strong></div>
+            <div className="order-value"><span>{text("质押金额", "Stake amount")}</span><div><strong>1000</strong><b>USDT</b></div></div>
+            <div className="order-receive"><span>{text("预计获得", "You receive")}</span><strong>{text("+2000 算力", "+2,000 Power")}</strong><strong>{text("+1000 U 推广额度", "+1,000 U Referral quota")}</strong></div>
             <div className="allocation" aria-label={text("质押资金分配", "Stake allocation")}>
               <div style={{ width: "10%" }} className="lp" />
               <div style={{ width: "20%" }} className="direct" />
@@ -1008,9 +1008,9 @@ export default function Home() {
             ) : !isBound ? (
               <button className="main-action" disabled>{text("请先绑定上级", "Bind a sponsor first")}</button>
             ) : !hasEnoughUsdt ? (
-              <button className="main-action" disabled>{text("USDT 余额不足（需要 1 USDT）", "Insufficient USDT (1 USDT required)")}</button>
+              <button className="main-action" disabled>{text("USDT 余额不足（需要 1000 USDT）", "Insufficient USDT (1,000 USDT required)")}</button>
             ) : needsApproval ? (
-              <button className="main-action" onClick={approveUsdt} disabled={busy || !isConfigured}>{snapshot.allowance > ORDER_AMOUNT ? text("调整授权为 1 USDT", "Reset approval to 1 USDT") : text("授权 1 USDT", "Approve 1 USDT")}</button>
+              <button className="main-action" onClick={approveUsdt} disabled={busy || !isConfigured}>{snapshot.allowance > ORDER_AMOUNT ? text("调整授权为 1000 USDT", "Reset approval to 1,000 USDT") : text("授权 1000 USDT", "Approve 1,000 USDT")}</button>
             ) : !snapshot.oracleReady ? (
               <button className="main-action" disabled>{text("价格服务更新中，请稍后刷新", "Price service updating; refresh shortly")}</button>
             ) : (
