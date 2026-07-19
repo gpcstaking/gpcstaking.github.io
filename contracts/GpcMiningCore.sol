@@ -47,7 +47,6 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     uint256 public constant INACTIVITY_PERIOD = 180 days;
     uint256 public constant MAX_DEADLINE_WINDOW = 1 minutes;
     uint256 public constant MAX_REFERRAL_DEPTH = 30;
-    uint256 public constant MAX_EXPIRE_BATCH = 50;
     uint256 private constant MAX_AUTO_EXPIRE_BATCH = 20;
     uint8 private constant POWER_HISTORY_ORDER = 1;
     uint8 private constant POWER_HISTORY_WITHDRAW = 2;
@@ -177,9 +176,9 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     error NoReward();
     error WithdrawExceedsPoolLimit();
     error GlobalWithdrawLimitExceeded();
-    error BatchTooLarge();
     error ProtectedToken();
     error CommunityRewardOverflow();
+    error ServiceOperatorOnly();
 
     function __GpcMiningCore_init(
         address usdt_,
@@ -250,20 +249,10 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     }
 
     /**
-     * @notice Idempotently backfills nodes bound before team-node counting was deployed.
-     */
-    function registerTeamNodeCounts(address[] calldata accounts) external onlyOwner {
-        if (accounts.length > MAX_EXPIRE_BATCH) revert BatchTooLarge();
-        for (uint256 i; i < accounts.length; ++i) {
-            _accountTeamNode(accounts[i]);
-        }
-    }
-
-    /**
      * @notice BscScan-friendly order entry using only on-chain TWAP and spot protections.
      */
     function placeOrder(uint256 deadline) external nonReentrant whenNotPaused {
-        _placeOrder(deadline, 0, 0, 0, 0);
+        _placeOrder(msg.sender, deadline, 0, 0, 0, 0);
     }
 
     /**
@@ -281,33 +270,50 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         uint256 userMinLpGpc,
         uint256 userMinLpWbnb
     ) external nonReentrant whenNotPaused {
-        _placeOrder(deadline, userMinGpcOut, userMinWbnbOut, userMinLpGpc, userMinLpWbnb);
+        _placeOrder(msg.sender, deadline, userMinGpcOut, userMinWbnbOut, userMinLpGpc, userMinLpWbnb);
+    }
+
+    /**
+     * @notice Lets the operation wallet pay for one order credited to an existing referral user.
+     * @dev The beneficiary receives all power and quota; USDT is always collected from the caller.
+     */
+    function placeOrderFor(
+        address beneficiary,
+        uint256 deadline,
+        uint256 userMinGpcOut,
+        uint256 userMinWbnbOut,
+        uint256 userMinLpGpc,
+        uint256 userMinLpWbnb
+    ) external nonReentrant whenNotPaused {
+        if (msg.sender != operationWallet) revert ServiceOperatorOnly();
+        _placeOrder(beneficiary, deadline, userMinGpcOut, userMinWbnbOut, userMinLpGpc, userMinLpWbnb);
     }
 
     function _placeOrder(
+        address account,
         uint256 deadline,
         uint256 userMinGpcOut,
         uint256 userMinWbnbOut,
         uint256 userMinLpGpc,
         uint256 userMinLpWbnb
     ) internal {
-        address parent = parentOf[msg.sender];
+        address parent = parentOf[account];
         // Root eligibility is determined only by referral topology. The root's
         // sentinel parent is this proxy, regardless of which wallet is used for operations.
         bool isRootOrder = parent == address(this);
-        if (!isRootOrder && (parent == address(0) || parent == address(this))) {
+        if (!isRootOrder && parent == address(0)) {
             revert ReferralRequired();
         }
         if (deadline < block.timestamp || deadline > block.timestamp + MAX_DEADLINE_WINDOW) {
             revert InvalidDeadline();
         }
 
-        UserInfo storage user = users[msg.sender];
+        UserInfo storage user = users[account];
         if (user.lastOrderAt != 0 && block.timestamp < uint256(user.lastOrderAt) + ORDER_COOLDOWN) {
             revert OrderCooldownActive();
         }
 
-        _expireIfNeeded(msg.sender);
+        _expireIfNeeded(account);
         user.lastOrderAt = uint64(block.timestamp);
 
         uint256 beforeUsdt = usdt.balanceOf(address(this));
@@ -364,19 +370,19 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         }
         miningPoolGpc += poolGpc;
 
-        _increasePower(msg.sender, POWER_PER_ORDER);
+        _increasePower(account, POWER_PER_ORDER);
         user.totalPowerPurchased += POWER_PER_ORDER;
         user.promotionQuota += PROMOTION_QUOTA_PER_ORDER;
-        _appendPowerHistory(msg.sender, POWER_PER_ORDER, POWER_HISTORY_ORDER);
-        _appendQuotaHistory(msg.sender, PROMOTION_QUOTA_PER_ORDER, QUOTA_HISTORY_ORDER);
+        _appendPowerHistory(account, POWER_PER_ORDER, POWER_HISTORY_ORDER);
+        _appendQuotaHistory(account, PROMOTION_QUOTA_PER_ORDER, QUOTA_HISTORY_ORDER);
         user.nextWithdrawAt = uint64(block.timestamp + WITHDRAW_COOLDOWN);
         if (user.inactivityStartedAt == 0) {
             user.inactivityStartedAt = uint64(block.timestamp);
         }
-        _upsertExpiryUser(msg.sender);
+        _upsertExpiryUser(account);
 
         emit OrderPlaced(
-            msg.sender,
+            account,
             parent,
             rewardRecipient,
             gpcBought,
@@ -388,13 +394,26 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     }
 
     function withdraw() external nonReentrant whenNotPaused {
-        if (_expireIfNeeded(msg.sender)) return;
+        _withdraw(msg.sender);
+    }
 
-        UserInfo storage user = users[msg.sender];
+    /**
+     * @notice Lets the operation wallet trigger a user's available withdrawal.
+     * @dev Net GPC always transfers to the beneficiary, never to the operation caller.
+     */
+    function withdrawFor(address beneficiary) external nonReentrant whenNotPaused {
+        if (msg.sender != operationWallet) revert ServiceOperatorOnly();
+        _withdraw(beneficiary);
+    }
+
+    function _withdraw(address account) internal {
+        if (_expireIfNeeded(account)) return;
+
+        UserInfo storage user = users[account];
         if (user.power == 0) revert NoPower();
         if (block.timestamp < user.nextWithdrawAt) revert WithdrawCooldownActive();
 
-        RewardQuote memory quote = _quoteRewards(msg.sender);
+        RewardQuote memory quote = _quoteRewards(account);
         if (quote.totalRewardUsdt == 0 || quote.grossGpc == 0) revert NoReward();
         _validateSpotAgainstTwap(quote.gpcPrice, oracle.bnbPrice());
         if (quote.grossGpc * BPS > miningPoolGpc * MAX_WITHDRAW_POOL_BPS) {
@@ -404,26 +423,26 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
 
         uint256 feeGpc = Math.mulDiv(quote.grossGpc, WITHDRAW_FEE_BPS, BPS);
         uint256 netGpc = quote.grossGpc - feeGpc;
-        _recordCommunityEarnings(msg.sender, quote.communityRewardUsdt);
+        _recordCommunityEarnings(account, quote.communityRewardUsdt);
 
         user.nextWithdrawAt = uint64(block.timestamp + WITHDRAW_COOLDOWN);
         user.inactivityStartedAt = uint64(block.timestamp);
-        _decreasePower(msg.sender, quote.totalRewardUsdt);
-        _appendPowerHistory(msg.sender, quote.totalRewardUsdt, POWER_HISTORY_WITHDRAW);
+        _decreasePower(account, quote.totalRewardUsdt);
+        _appendPowerHistory(account, quote.totalRewardUsdt, POWER_HISTORY_WITHDRAW);
         if (user.power == 0) {
             user.nextWithdrawAt = 0;
             user.inactivityStartedAt = 0;
-            _removeExpiryUser(msg.sender);
+            _removeExpiryUser(account);
         } else {
-            _upsertExpiryUser(msg.sender);
+            _upsertExpiryUser(account);
         }
         miningPoolGpc -= quote.grossGpc;
 
-        gpc.safeTransfer(msg.sender, netGpc);
+        gpc.safeTransfer(account, netGpc);
         gpc.safeTransfer(operationWallet, feeGpc);
 
         emit Withdrawn(
-            msg.sender,
+            account,
             quote.staticRewardUsdt,
             quote.communityRewardUsdt,
             quote.totalRewardUsdt,
@@ -437,27 +456,6 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     function communityClaimedToday(address account) external view returns (uint256) {
         DailyCommunityEarnings memory earnings = dailyCommunityEarnings[account];
         return earnings.day == _currentDay() ? uint256(earnings.rewardUsdt) : 0;
-    }
-
-    function expireUsers(address[] calldata accounts) external whenNotPaused {
-        if (accounts.length > MAX_EXPIRE_BATCH) revert BatchTooLarge();
-        for (uint256 i; i < accounts.length; ++i) {
-            _expireIfNeeded(accounts[i]);
-        }
-    }
-
-    /**
-     * @notice One-time migration helper for users who ordered before the expiry queue upgrade.
-     * @dev New and returning users are registered automatically by placeOrder().
-     */
-    function registerExpiryUsers(address[] calldata accounts) external onlyOwner {
-        if (accounts.length > MAX_EXPIRE_BATCH) revert BatchTooLarge();
-        for (uint256 i; i < accounts.length; ++i) {
-            UserInfo storage user = users[accounts[i]];
-            if (user.power != 0 && user.inactivityStartedAt != 0) {
-                _upsertExpiryUser(accounts[i]);
-            }
-        }
     }
 
     /**
@@ -481,14 +479,6 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     function nextExpiryAt() public view returns (uint256) {
         if (_expiryHeap.length == 0) return 0;
         return uint256(users[_expiryHeap[0]].inactivityStartedAt) + INACTIVITY_PERIOD;
-    }
-
-    function expiryQueueSize() external view returns (uint256) {
-        return _expiryHeap.length;
-    }
-
-    function expiryQueueUser(uint256 index) external view returns (address) {
-        return _expiryHeap[index];
     }
 
     function quoteRewards(address account) external view returns (RewardQuote memory) {
@@ -524,10 +514,6 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
             branch = heap[0];
             power = branchPower[account][branch];
         }
-    }
-
-    function isExpired(address account) external view returns (bool) {
-        return _isExpired(account);
     }
 
     function spotPrices() public view returns (uint256 gpcUsdtPrice, uint256 wbnbUsdtPrice) {

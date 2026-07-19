@@ -23,6 +23,7 @@ const USDT_ADDRESS = "0x55d398326f99059fF775485246999027B3197955";
 const GPC_ADDRESS = "0xD3c304697f63B279cd314F92c19cDBE5E5b1631A";
 const WBNB_ADDRESS = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c";
 const DEAD_ADDRESS = "0x000000000000000000000000000000000000dEaD";
+const OPERATION_WALLET = "0xA04509c94567B47E1F08CF81EbEDF09F663943c9";
 const BSC_CHAIN_ID = "0x38";
 
 const MINING_ABI = [
@@ -43,8 +44,11 @@ const MINING_ABI = [
   "function oracle() view returns (address)",
   "function bindReferral(address parent)",
   "function router() view returns (address)",
+  "function operationWallet() view returns (address)",
   "function placeOrder(uint256 deadline,uint256 userMinGpcOut,uint256 userMinWbnbOut,uint256 userMinLpGpc,uint256 userMinLpWbnb)",
+  "function placeOrderFor(address beneficiary,uint256 deadline,uint256 userMinGpcOut,uint256 userMinWbnbOut,uint256 userMinLpGpc,uint256 userMinLpWbnb)",
   "function withdraw()",
+  "function withdrawFor(address beneficiary)",
   "event Withdrawn(address indexed user,uint256 staticRewardUsdt,uint256 communityRewardUsdt,uint256 powerBurned,uint256 grossGpc,uint256 feeGpc,uint256 netGpc,uint256 gpcPrice)",
   "error RootCannotOrder()",
   "error ReferralRequired()",
@@ -53,6 +57,7 @@ const MINING_ABI = [
   "error OraclePriceInvalid()",
   "error SpotTwapDeviationTooHigh(address asset,uint256 spotPrice,uint256 twapPrice)",
   "error SwapOutputTooLow()",
+  "error ServiceOperatorOnly()",
 ];
 
 const HISTORY_ABI = [
@@ -325,6 +330,7 @@ function friendlyTransactionError(error: unknown, language: Language) {
   if (contractError("NoReward", "0x6e992686")) return localized("当前没有可领取收益", "There is currently no reward to claim");
   if (contractError("WithdrawExceedsPoolLimit", "0xe9260c57")) return localized("本次提现超过订单矿池 1% 限额", "This claim exceeds the 1% mining-pool limit");
   if (contractError("GlobalWithdrawLimitExceeded", "0x73c5a6b0")) return localized("当前 24 小时全网提现额度已用完，请稍后再试", "The global 24-hour claim limit has been reached. Try again later.");
+  if (contractError("ServiceOperatorOnly", "0x9799b9d3")) return localized("当前钱包没有代操作权限", "This wallet is not authorized for assisted operations");
   if (/TRANSFER_FROM_FAILED|transfer amount exceeds balance|SafeERC20|insufficient allowance/i.test(details)) return localized("USDT 余额或授权不足，本次质押未扣款", "Insufficient USDT balance or allowance. No funds were taken.");
   return details || localized("交易失败，请稍后重试", "Transaction failed. Try again shortly.");
 }
@@ -367,6 +373,8 @@ export default function Home() {
   const [ledgerError, setLedgerError] = useState<LocalizedStatus | null>(null);
   const [todayClaimsError, setTodayClaimsError] = useState(false);
   const [referralsLoading, setReferralsLoading] = useState(false);
+  const [serviceMode, setServiceMode] = useState(false);
+  const [serviceBeneficiary, setServiceBeneficiary] = useState("");
   const refreshSequence = useRef(0);
 
   const text = (zh: string, en: string) => language === "zh" ? zh : en;
@@ -378,12 +386,21 @@ export default function Home() {
   const canWithdraw = snapshot.nextWithdrawAt !== 0 && currentTime >= snapshot.nextWithdrawAt;
   const bindingRequired = Boolean(account) && !isBound;
   const communityRewardBurned = snapshot.effectiveSmallArea < snapshot.smallArea;
+  const isServiceOperator = Boolean(account) && account.toLowerCase() === OPERATION_WALLET.toLowerCase();
 
   useEffect(() => {
+    const restoreServiceMode = window.setTimeout(() => {
+      setServiceMode(new URLSearchParams(window.location.search).get("service") === "operator");
+    }, 0);
     const savedLanguage = window.localStorage.getItem("gpc-language");
-    if (savedLanguage !== "zh" && savedLanguage !== "en") return;
+    if (savedLanguage !== "zh" && savedLanguage !== "en") {
+      return () => window.clearTimeout(restoreServiceMode);
+    }
     const restoreLanguage = window.setTimeout(() => setLanguage(savedLanguage), 0);
-    return () => window.clearTimeout(restoreLanguage);
+    return () => {
+      window.clearTimeout(restoreServiceMode);
+      window.clearTimeout(restoreLanguage);
+    };
   }, []);
 
   function toggleLanguage() {
@@ -702,25 +719,67 @@ export default function Home() {
     });
   }
 
+  async function protectedOrderArgs(mining: Contract) {
+    if (!provider) throw new Error(text("请先连接钱包", "Connect your wallet first"));
+    const routerAddress = await mining.router();
+    const pancakeRouter = new Contract(routerAddress, ROUTER_ABI, provider);
+    const [gpcAmounts, wbnbAmounts] = await Promise.all([
+      pancakeRouter.getAmountsOut(GPC_SWAP_AMOUNT, [USDT_ADDRESS, WBNB_ADDRESS, GPC_ADDRESS]),
+      pancakeRouter.getAmountsOut(WBNB_SWAP_AMOUNT, [USDT_ADDRESS, WBNB_ADDRESS]),
+    ]);
+    const quotedGpc = gpcAmounts[gpcAmounts.length - 1] as bigint;
+    const quotedWbnb = wbnbAmounts[wbnbAmounts.length - 1] as bigint;
+    const minGpcOut = quotedGpc * (BPS - USER_SWAP_SLIPPAGE_BPS) / BPS;
+    const minWbnbOut = quotedWbnb * (BPS - USER_SWAP_SLIPPAGE_BPS) / BPS;
+    const minLpGpc = (quotedGpc / 14n) * (BPS - LP_SLIPPAGE_BPS) / BPS;
+    const minLpWbnb = quotedWbnb * (BPS - LP_SLIPPAGE_BPS) / BPS;
+    const deadline = Math.floor(Date.now() / 1000) + ORDER_DEADLINE_SECONDS;
+    return [deadline, minGpcOut, minWbnbOut, minLpGpc, minLpWbnb] as const;
+  }
+
   function placeOrder() {
     return runTransaction({ zh: "GPC 质押", en: "GPC staking" }, async signer => {
       const mining = new Contract(MINING_ADDRESS, MINING_ABI, signer);
-      const routerAddress = await mining.router();
-      const pancakeRouter = new Contract(routerAddress, ROUTER_ABI, provider);
-      const [gpcAmounts, wbnbAmounts] = await Promise.all([
-        pancakeRouter.getAmountsOut(GPC_SWAP_AMOUNT, [USDT_ADDRESS, WBNB_ADDRESS, GPC_ADDRESS]),
-        pancakeRouter.getAmountsOut(WBNB_SWAP_AMOUNT, [USDT_ADDRESS, WBNB_ADDRESS]),
-      ]);
-      const quotedGpc = gpcAmounts[gpcAmounts.length - 1] as bigint;
-      const quotedWbnb = wbnbAmounts[wbnbAmounts.length - 1] as bigint;
-      const minGpcOut = quotedGpc * (BPS - USER_SWAP_SLIPPAGE_BPS) / BPS;
-      const minWbnbOut = quotedWbnb * (BPS - USER_SWAP_SLIPPAGE_BPS) / BPS;
-      const minLpGpc = (quotedGpc / 14n) * (BPS - LP_SLIPPAGE_BPS) / BPS;
-      const minLpWbnb = quotedWbnb * (BPS - LP_SLIPPAGE_BPS) / BPS;
-      const deadline = Math.floor(Date.now() / 1000) + ORDER_DEADLINE_SECONDS;
+      const [deadline, minGpcOut, minWbnbOut, minLpGpc, minLpWbnb] = await protectedOrderArgs(mining);
       await mining.placeOrder.staticCall(deadline, minGpcOut, minWbnbOut, minLpGpc, minLpWbnb);
       const estimatedGas = await mining.placeOrder.estimateGas(deadline, minGpcOut, minWbnbOut, minLpGpc, minLpWbnb);
       return mining.placeOrder(deadline, minGpcOut, minWbnbOut, minLpGpc, minLpWbnb, { gasLimit: gasLimitWithHeadroom(estimatedGas) });
+    });
+  }
+
+  async function servicePlaceOrder() {
+    if (!isAddress(serviceBeneficiary)) {
+      setStatus({ zh: "请输入有效的目标钱包地址", en: "Enter a valid beneficiary wallet address" });
+      return false;
+    }
+    return runTransaction({ zh: "代报单", en: "Assisted staking" }, async signer => {
+      const mining = new Contract(MINING_ADDRESS, MINING_ABI, signer);
+      if ((await mining.operationWallet()).toLowerCase() !== (await signer.getAddress()).toLowerCase()) {
+        throw new Error(text("当前钱包没有代操作权限", "This wallet is not authorized for assisted operations"));
+      }
+      const parent = await mining.parentOf(serviceBeneficiary);
+      if (parent === ZERO_ADDRESS) {
+        throw new Error(text("目标钱包未绑定有效上级", "The beneficiary has not bound a valid sponsor"));
+      }
+      const [deadline, minGpcOut, minWbnbOut, minLpGpc, minLpWbnb] = await protectedOrderArgs(mining);
+      await mining.placeOrderFor.staticCall(serviceBeneficiary, deadline, minGpcOut, minWbnbOut, minLpGpc, minLpWbnb);
+      const estimatedGas = await mining.placeOrderFor.estimateGas(serviceBeneficiary, deadline, minGpcOut, minWbnbOut, minLpGpc, minLpWbnb);
+      return mining.placeOrderFor(serviceBeneficiary, deadline, minGpcOut, minWbnbOut, minLpGpc, minLpWbnb, { gasLimit: gasLimitWithHeadroom(estimatedGas) });
+    });
+  }
+
+  async function serviceWithdraw() {
+    if (!isAddress(serviceBeneficiary)) {
+      setStatus({ zh: "请输入有效的目标钱包地址", en: "Enter a valid beneficiary wallet address" });
+      return false;
+    }
+    return runTransaction({ zh: "代提现", en: "Assisted claim" }, async signer => {
+      const mining = new Contract(MINING_ADDRESS, MINING_ABI, signer);
+      if ((await mining.operationWallet()).toLowerCase() !== (await signer.getAddress()).toLowerCase()) {
+        throw new Error(text("当前钱包没有代操作权限", "This wallet is not authorized for assisted operations"));
+      }
+      const estimatedGas = await mining.withdrawFor.estimateGas(serviceBeneficiary);
+      return mining.withdrawFor(serviceBeneficiary, { gasLimit: gasLimitWithHeadroom(estimatedGas) });
     });
   }
 
@@ -764,7 +823,60 @@ export default function Home() {
           <button onClick={() => provider && account && refresh(provider, account)} disabled={!account || busy}><DappIcon name="refresh" size={14} /></button>
         </div>
 
-        {ledgerKind && (
+        {serviceMode && (
+          <section className="service-page" aria-labelledby="service-title">
+            <div className="service-heading">
+              <span>GPC OPERATIONS</span>
+              <h1 id="service-title">{text("代操作工具", "Assisted Operations")}</h1>
+              <p>{text("该入口不会出现在普通导航中，链上仅允许运营钱包执行。", "This page is not linked from the public navigation and only the on-chain operation wallet can execute actions.")}</p>
+            </div>
+
+            {!account ? (
+              <article className="service-lock-card">
+                <span className="service-lock-icon"><DappIcon name="shield" size={24} /></span>
+                <strong>{text("连接运营钱包", "Connect operation wallet")}</strong>
+                <p>{text("连接后合约会再次校验调用钱包权限。", "The contract verifies the caller again after connection.")}</p>
+                <button onClick={connectWallet} disabled={busy}>{text("连接钱包", "Connect wallet")}</button>
+              </article>
+            ) : !isServiceOperator ? (
+              <article className="service-lock-card denied">
+                <span className="service-lock-icon"><DappIcon name="shield" size={24} /></span>
+                <strong>{text("当前钱包无权限", "Unauthorized wallet")}</strong>
+                <p>{text("请切换到合约配置的运营钱包。页面隐藏不能替代链上权限。", "Switch to the operation wallet configured in the contract. A hidden page never replaces on-chain authorization.")}</p>
+              </article>
+            ) : (
+              <>
+                <article className="service-target-card">
+                  <div className="service-operator-row"><span>{text("当前操作钱包", "Current operator")}</span><strong>{shortAddress(account)}</strong></div>
+                  <label htmlFor="service-beneficiary">{text("目标用户钱包地址", "Beneficiary wallet address")}</label>
+                  <input id="service-beneficiary" value={serviceBeneficiary} onChange={event => setServiceBeneficiary(event.target.value.trim())} placeholder="0x..." autoComplete="off" autoCapitalize="none" inputMode="text" spellCheck={false} />
+                  <small><DappIcon name="shield" size={13} />{text("代提现收益始终发送给此目标地址", "Assisted claim proceeds always go to this beneficiary")}</small>
+                </article>
+
+                <article className="service-action-card">
+                  <div className="service-action-title"><span className="heading-icon"><DappIcon name="order" size={17} /></span><div><strong>{text("代报单", "Assisted staking")}</strong><small>{text("运营钱包支付 1 USDT，目标用户获得 2 算力和 1 U 推广额度", "The operation wallet pays 1 USDT; the beneficiary receives 2 power and 1 U referral quota")}</small></div></div>
+                  <div className="wallet-row"><span>{text("运营钱包 USDT", "Operator USDT")}</span><strong>{compact(snapshot.usdtBalance, language)} USDT</strong></div>
+                  {!hasEnoughUsdt ? (
+                    <button className="service-action-button" disabled>{text("USDT 余额不足", "Insufficient USDT")}</button>
+                  ) : needsApproval ? (
+                    <button className="service-action-button" onClick={approveUsdt} disabled={busy}>{snapshot.allowance > ORDER_AMOUNT ? text("调整授权为 1 USDT", "Reset approval to 1 USDT") : text("授权 1 USDT", "Approve 1 USDT")}</button>
+                  ) : !snapshot.oracleReady ? (
+                    <button className="service-action-button" disabled>{text("价格服务更新中", "Price service updating")}</button>
+                  ) : (
+                    <button className="service-action-button" onClick={servicePlaceOrder} disabled={busy || !isAddress(serviceBeneficiary)}>{text("确认代报单", "Confirm assisted stake")}</button>
+                  )}
+                </article>
+
+                <article className="service-action-card withdraw-card">
+                  <div className="service-action-title"><span className="heading-icon"><DappIcon name="withdraw" size={17} /></span><div><strong>{text("代提现", "Assisted claim")}</strong><small>{text("按目标用户的 24 小时周期结算，手续费到运营钱包，净 GPC 到目标钱包", "Uses the beneficiary's 24-hour cycle; the fee goes to operations and net GPC goes to the beneficiary")}</small></div></div>
+                  <button className="service-action-button secondary" onClick={serviceWithdraw} disabled={busy || !isAddress(serviceBeneficiary)}>{text("确认代提现", "Confirm assisted claim")}</button>
+                </article>
+              </>
+            )}
+          </section>
+        )}
+
+        {ledgerKind && !serviceMode && (
           <section className="ledger-page" role="dialog" aria-modal="true" aria-labelledby="ledger-title">
             <header className="ledger-header">
               <button onClick={closeLedger} aria-label={text("返回质押页面", "Back to staking")}><DappIcon name="chevron" size={18} /></button>
@@ -797,7 +909,7 @@ export default function Home() {
           </section>
         )}
 
-        <div className="tab-page" hidden={activeTab !== "home"}>
+        <div className="tab-page" hidden={serviceMode || activeTab !== "home"}>
           <section className="balance-card" aria-label={text("今日已领取", "Claimed today")}>
             <div className="balance-topline">
               <span>{text("今日已领取", "Claimed today")}</span>
@@ -825,7 +937,7 @@ export default function Home() {
           </section>
         </div>
 
-        <div className="tab-page" hidden={activeTab !== "order"}>
+        <div className="tab-page" hidden={serviceMode || activeTab !== "order"}>
           <div className="page-heading"><span>STAKING</span><h1>{text("GPC质押挖矿", "GPC Staking Mining")}</h1><p>{text("测试阶段每次固定质押 1 USDT，链上自动完成分账并增加算力。", "During testing, stake a fixed 1 USDT. Allocation and mining power are handled on-chain.")}</p></div>
           <article className="order-card">
             <div className="order-value"><span>{text("质押金额", "Stake amount")}</span><div><strong>1</strong><b>USDT</b></div></div>
@@ -859,7 +971,7 @@ export default function Home() {
           </article>
         </div>
 
-        <div className="tab-page" hidden={activeTab !== "team"}>
+        <div className="tab-page" hidden={serviceMode || activeTab !== "team"}>
           <div className="page-heading"><span>COMMUNITY</span><h1>{text("我的团队", "My Team")}</h1><p>{text("统计 30 层推荐关系，自动计算小区有效算力与社区奖励。", "Tracks 30 referral levels and calculates effective small-area power and community rewards.")}</p></div>
           <article className="community-hero">
             <span>{text("今日社区已收益", "Community earned today")}</span><strong>{compact(snapshot.communityClaimedToday, language, 4)} <small>USDT</small></strong><p>{snapshot.communityClaimedToday > 0n ? text("今日提现已结算的社区收益", "Community earnings settled in today's claim") : text("今日尚未领取社区收益", "No community earnings claimed today")}</p>
@@ -901,7 +1013,7 @@ export default function Home() {
           <div className="burn-note"><DappIcon name="shield" size={16} /><div><strong>{text("社区收益全额烧伤规则", "Full community reward burn")}</strong><span>{text("小区有效算力低于小区总算力时，社区收益为 0 并全部烧伤；只有有效算力覆盖全部小区总算力时，才获得 5% 小区奖励。", "If effective power is below total small-area power, the full community reward is burned to zero. The 5% reward is paid only when effective power covers the entire small area.")}</span></div></div>
         </div>
 
-        <div className="tab-page" hidden={activeTab !== "ecosystem"}>
+        <div className="tab-page" hidden={serviceMode || activeTab !== "ecosystem"}>
           <div className="page-heading"><span>ECOSYSTEM</span><h1>{text("GPC 传奇", "GPC Legend")}</h1><p>{text("探索由 GPC 通缩机制驱动的链游生态。", "Explore a blockchain gaming ecosystem powered by GPC tokenomics.")}</p></div>
           <article className="ecosystem-game-card">
             <span className="ecosystem-kicker">GPC LEGEND</span>
@@ -940,14 +1052,14 @@ export default function Home() {
           </article>
         </div>
 
-        <nav className="bottom-nav" aria-label={text("主导航", "Main navigation")}>
+        {!serviceMode && <nav className="bottom-nav" aria-label={text("主导航", "Main navigation")}>
           <button className={activeTab === "home" ? "active" : ""} onClick={() => switchTab("home")}><DappIcon name="home" /><span>{text("首页", "Home")}</span></button>
           <button className={activeTab === "order" ? "active" : ""} onClick={() => switchTab("order")}><DappIcon name="order" /><span>{text("质押", "Stake")}</span></button>
           <button className={activeTab === "team" ? "active" : ""} onClick={() => switchTab("team")}><DappIcon name="team" /><span>{text("团队", "Team")}</span></button>
           <button className={activeTab === "ecosystem" ? "active" : ""} onClick={() => switchTab("ecosystem")}><DappIcon name="link" /><span>{text("生态", "Ecosystem")}</span></button>
-        </nav>
+        </nav>}
 
-        {bindingRequired && (
+        {bindingRequired && !serviceMode && (
           <div className="binding-gate" role="dialog" aria-modal="true" aria-labelledby="binding-title">
             <div className="binding-modal">
               <span className="binding-mark"><DappIcon name="link" size={24} /></span>

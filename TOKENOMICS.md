@@ -21,6 +21,8 @@ Both swaps are bounded to 2% below the six-hour TWAP and expire within one minut
 
 Before either swap, current GPC/USDT and WBNB/USDT reserve prices are compared with their six-hour TWAPs. If either absolute deviation exceeds 1%, the whole order reverts before funds are retained. These checks tightly bound sandwich loss but do not make public-mempool execution MEV-free. Configure a client-safe protected BSC RPC in the DApp and verify the selected wallet network. Direct BscScan users may call the one-argument `placeOrder(deadline)` entry, which keeps the contract TWAP and 1% spot guard but cannot add the DApp's stricter pre-signing quote.
 
+The configured operation wallet may place an assisted order for an already-bound beneficiary. USDT is collected from the operation wallet, while power, purchased-power accounting, promotion quota, cooldowns, referral rewards, history, and inactivity scheduling are all applied to the beneficiary exactly as in a self-service order. Other wallets cannot call the assisted entry.
+
 The production DApp pins the audited Mining proxy and uses bounded direct-referral index reads. History tracking can only be initialized by the Mining business owner; upgrades that introduce a new reinitializer must continue to execute it atomically through `upgradeAndCall`.
 
 ## Daily rewards
@@ -44,6 +46,8 @@ Static plus community rewards are capped at 0.5% of current personal power. The 
 For each user, the largest direct referral branch is removed. All other branch power is the small area. Effective small-area power is `min(smallArea, personalPower × 5)`. If effective small-area power is lower than the complete small area, the entire community reward is burned and the community reward is zero. A community reward is paid only when effective small-area power covers the complete small area. Referral depth is limited to 30.
 
 Withdrawals are available once per 24 hours and never accrue missed days. A new order resets only the 24-hour timer. A single user's gross daily GPC withdrawal above 1% of the accounted mining pool reverts the entire withdrawal. Aggregate gross withdrawals across all users are additionally capped at 2% of the mining-pool balance captured at the start of each 24-hour global window. A 10% GPC fee goes to the operation wallet.
+
+The operation wallet may trigger an assisted withdrawal after the beneficiary's normal cooldown. Reward calculation, power burn, inactivity scheduling, individual and global pool limits, price checks, and the 10% fee remain unchanged. Net GPC is transferred only to the beneficiary; the operator cannot redirect it.
 
 Every withdrawal validates the Oracle's GPC and WBNB prices against current Pancake reserve prices; either price deviating by more than 1% causes the withdrawal to revert. The rolling Oracle prefers a live-ended six-hour TWAP, falls back to the most recent available cumulative-price window when a complete window is unavailable, and uses the current two-pair spot price only when no elapsed observation exists. A keeper delay beyond thirty minutes is an operational alert and does not stop staking or withdrawals.
 

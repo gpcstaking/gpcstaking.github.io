@@ -139,7 +139,56 @@ describe('GpcMiningCore', function () {
     expect(await usdt.balanceOf(operation.address)).to.equal(e('9.25'));
     expect(await mining.totalPower()).to.equal(e('2'));
     expect(await mining.teamPower(operation.address)).to.equal(0);
-    expect(await mining.expiryQueueSize()).to.equal(1);
+    expect(await mining.nextExpiryAt()).to.equal(rootInfo.inactivityStartedAt + 180n * 24n * 60n * 60n);
+  });
+
+  it('lets only the operation wallet pay for an order credited to a bound beneficiary', async function () {
+    const { operation, alice, bob, usdt, mining, history } = await loadFixture(deployFixture);
+    await mining.connect(alice).bindReferral(operation.address);
+    await usdt.mint(operation.address, e('10'));
+    await usdt.connect(operation).approve(mining.target, e('1'));
+    const deadline = (await time.latest()) + 60;
+
+    await expect(
+      mining.connect(bob).placeOrderFor(alice.address, deadline, 0, 0, 0, 0)
+    ).to.be.revertedWithCustomError(mining, 'ServiceOperatorOnly');
+
+    await expect(
+      mining.connect(operation).placeOrderFor(alice.address, deadline, 0, 0, 0, 0)
+    ).to.emit(mining, 'OrderPlaced')
+      .withArgs(alice.address, operation.address, operation.address, e('7'), e('6.5'), e('0.5'), e('0.0001'), e('0.0001'));
+
+    const beneficiary = await mining.users(alice.address);
+    expect(beneficiary.power).to.equal(e('2'));
+    expect(beneficiary.totalPowerPurchased).to.equal(e('2'));
+    expect(beneficiary.promotionQuota).to.equal(e('1'));
+    expect((await mining.users(operation.address)).power).to.equal(0);
+    expect(await usdt.balanceOf(operation.address)).to.equal(e('9.25'));
+
+    const [powerHistory, powerHistoryTotal] = await history.powerHistory(alice.address, 0, 30);
+    expect(powerHistoryTotal).to.equal(1);
+    expect(powerHistory[0].amount).to.equal(e('2'));
+    expect(powerHistory[0].kind).to.equal(await history.POWER_HISTORY_ORDER());
+  });
+
+  it('lets only the operation wallet trigger a withdrawal that pays the beneficiary', async function () {
+    const { operation, alice, bob, gpc, mining, bindAndOrder } = await loadFixture(deployFixture);
+    await bindAndOrder(alice, operation);
+    await time.increase(24 * 60 * 60);
+    const quote = await mining.quoteRewards(alice.address);
+    const fee = quote.grossGpc / 10n;
+    const beneficiaryBefore = await gpc.balanceOf(alice.address);
+    const operationBefore = await gpc.balanceOf(operation.address);
+
+    await expect(mining.connect(bob).withdrawFor(alice.address))
+      .to.be.revertedWithCustomError(mining, 'ServiceOperatorOnly');
+    await expect(mining.connect(operation).withdrawFor(alice.address))
+      .to.emit(mining, 'Withdrawn');
+
+    expect(await gpc.balanceOf(alice.address)).to.equal(beneficiaryBefore + quote.grossGpc - fee);
+    expect(await gpc.balanceOf(operation.address)).to.equal(operationBefore + fee);
+    await expect(mining.connect(operation).withdrawFor(alice.address))
+      .to.be.revertedWithCustomError(mining, 'WithdrawCooldownActive');
   });
 
   it('runs behind a transparent proxy and preserves state across an upgrade', async function () {
@@ -412,7 +461,7 @@ describe('GpcMiningCore', function () {
     expect((await mining.users(alice.address)).power).to.equal(e('4'));
 
     await time.increase(24 * 60 * 60);
-    expect(await mining.isExpired(alice.address)).to.equal(true);
+    expect((await mining.quoteRewards(alice.address)).totalRewardUsdt).to.equal(0);
     await expect(mining.connect(alice).withdraw())
       .to.emit(mining, 'PowerExpired')
       .withArgs(alice.address, e('4'), anyValue);
@@ -428,8 +477,6 @@ describe('GpcMiningCore', function () {
     await bindAndOrder(bob, operation);
     const bobStartedAt = (await mining.users(bob.address)).inactivityStartedAt;
 
-    expect(await mining.expiryQueueSize()).to.equal(2);
-    expect(await mining.expiryQueueUser(0)).to.equal(alice.address);
     expect(await mining.nextExpiryAt()).to.equal(aliceStartedAt + 180n * 24n * 60n * 60n);
 
     await time.increase(170 * 24 * 60 * 60);
@@ -441,8 +488,7 @@ describe('GpcMiningCore', function () {
 
     expect((await mining.users(alice.address)).power).to.equal(0);
     expect((await mining.users(bob.address)).power).to.equal(e('2'));
-    expect(await mining.expiryQueueSize()).to.equal(1);
-    expect(await mining.expiryQueueUser(0)).to.equal(bob.address);
+    expect(await mining.nextExpiryAt()).to.equal(bobStartedAt + 180n * 24n * 60n * 60n);
   });
 
   it('moves a successful withdrawal to its new inactivity expiry', async function () {
@@ -455,7 +501,6 @@ describe('GpcMiningCore', function () {
     await mining.connect(alice).withdraw();
 
     const bobStartedAt = (await mining.users(bob.address)).inactivityStartedAt;
-    expect(await mining.expiryQueueUser(0)).to.equal(bob.address);
     expect(await mining.nextExpiryAt()).to.equal(bobStartedAt + 180n * 24n * 60n * 60n);
   });
 
@@ -494,10 +539,6 @@ describe('GpcMiningCore', function () {
     expect(await mining.teamNodeCount(bob.address)).to.equal(1);
     expect(await mining.teamNodeCount(carol.address)).to.equal(0);
 
-    // Migration calls are idempotent for nodes already counted at bind time.
-    await mining.registerTeamNodeCounts([alice.address, bob.address, carol.address]);
-    expect(await mining.teamNodeCount(operation.address)).to.equal(3);
-    expect(await mining.teamNodeCount(alice.address)).to.equal(2);
   });
 
   it('exposes direct referrals through bounded index reads', async function () {
@@ -524,7 +565,7 @@ describe('GpcMiningCore', function () {
     expect(community.smallArea).to.equal(e('2'));
 
     await time.increase(180 * 24 * 60 * 60);
-    await mining.expireUsers([bob.address]);
+    await mining.connect(operation).withdrawFor(bob.address);
     community = await mining.communityPower(alice.address);
     expect(community.total).to.equal(e('2'));
     expect(community.largestBranchPower).to.equal(e('2'));
@@ -625,7 +666,7 @@ describe('GpcMiningCore', function () {
     await mining.connect(deployer).pause();
     await time.increase(180 * 24 * 60 * 60);
 
-    await expect(mining.expireUsers([alice.address])).to.be.revertedWith('Pausable: paused');
+    await expect(mining.expireDueUsers()).to.be.revertedWith('Pausable: paused');
   });
 });
 

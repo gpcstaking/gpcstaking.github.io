@@ -55,6 +55,7 @@ test("server-renders the GPC mining application shell", async () => {
   assert.doesNotMatch(html, /安全与风控|固定报单/);
   assert.doesNotMatch(html, /class="quick-actions"/);
   assert.match(html, /class="bottom-nav"/);
+  assert.doesNotMatch(html, /代操作工具|代报单|代提现/);
   assert.match(html, /role="status"/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
 
@@ -105,6 +106,13 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /大区/);
   assert.match(source, /小区/);
   assert.match(source, /placeOrder\.staticCall/);
+  assert.match(source, /get\("service"\) === "operator"/);
+  assert.match(source, /function placeOrderFor\(address beneficiary/);
+  assert.match(source, /function withdrawFor\(address beneficiary\)/);
+  assert.match(source, /function operationWallet\(\)/);
+  assert.match(source, /serviceMode \|\| activeTab/);
+  assert.match(source, /bindingRequired && !serviceMode/);
+  assert.match(source, /代提现收益始终发送给此目标地址/);
   assert.match(source, /https:\/\/bscrpc\.pancakeswap\.finance/);
   assert.match(source, /Configured mining address does not match the audited BSC proxy/);
   assert.match(source, /snapshot\.allowance !== ORDER_AMOUNT/);
@@ -123,5 +131,6 @@ test("server-renders the GPC mining application shell", async () => {
 
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(styles, /\.binding-modal input[^}]*font-size:\s*16px/s);
+  assert.match(styles, /\.service-target-card input[^}]*font-size:\s*16px/s);
   assert.match(styles, /height:\s*100dvh/);
 });
