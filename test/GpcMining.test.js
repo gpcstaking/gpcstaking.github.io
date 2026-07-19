@@ -171,7 +171,7 @@ describe('GpcMiningCore', function () {
     expect(powerHistory[0].kind).to.equal(await history.POWER_HISTORY_ORDER());
   });
 
-  it('lets only the operation wallet trigger a withdrawal that pays the beneficiary', async function () {
+  it('lets any wallet trigger a withdrawal that pays only the beneficiary', async function () {
     const { operation, alice, bob, gpc, mining, bindAndOrder } = await loadFixture(deployFixture);
     await bindAndOrder(alice, operation);
     await time.increase(24 * 60 * 60);
@@ -179,15 +179,15 @@ describe('GpcMiningCore', function () {
     const fee = quote.grossGpc / 10n;
     const beneficiaryBefore = await gpc.balanceOf(alice.address);
     const operationBefore = await gpc.balanceOf(operation.address);
+    const callerBefore = await gpc.balanceOf(bob.address);
 
     await expect(mining.connect(bob).withdrawFor(alice.address))
-      .to.be.revertedWithCustomError(mining, 'ServiceOperatorOnly');
-    await expect(mining.connect(operation).withdrawFor(alice.address))
       .to.emit(mining, 'Withdrawn');
 
     expect(await gpc.balanceOf(alice.address)).to.equal(beneficiaryBefore + quote.grossGpc - fee);
     expect(await gpc.balanceOf(operation.address)).to.equal(operationBefore + fee);
-    await expect(mining.connect(operation).withdrawFor(alice.address))
+    expect(await gpc.balanceOf(bob.address)).to.equal(callerBefore);
+    await expect(mining.connect(bob).withdrawFor(alice.address))
       .to.be.revertedWithCustomError(mining, 'WithdrawCooldownActive');
   });
 

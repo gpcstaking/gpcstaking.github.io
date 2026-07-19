@@ -23,7 +23,6 @@ const USDT_ADDRESS = "0x55d398326f99059fF775485246999027B3197955";
 const GPC_ADDRESS = "0xD3c304697f63B279cd314F92c19cDBE5E5b1631A";
 const WBNB_ADDRESS = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c";
 const DEAD_ADDRESS = "0x000000000000000000000000000000000000dEaD";
-const OPERATION_WALLET = "0xA04509c94567B47E1F08CF81EbEDF09F663943c9";
 const BSC_CHAIN_ID = "0x38";
 
 const MINING_ABI = [
@@ -44,7 +43,6 @@ const MINING_ABI = [
   "function oracle() view returns (address)",
   "function bindReferral(address parent)",
   "function router() view returns (address)",
-  "function operationWallet() view returns (address)",
   "function placeOrder(uint256 deadline,uint256 userMinGpcOut,uint256 userMinWbnbOut,uint256 userMinLpGpc,uint256 userMinLpWbnb)",
   "function placeOrderFor(address beneficiary,uint256 deadline,uint256 userMinGpcOut,uint256 userMinWbnbOut,uint256 userMinLpGpc,uint256 userMinLpWbnb)",
   "function withdraw()",
@@ -57,7 +55,6 @@ const MINING_ABI = [
   "error OraclePriceInvalid()",
   "error SpotTwapDeviationTooHigh(address asset,uint256 spotPrice,uint256 twapPrice)",
   "error SwapOutputTooLow()",
-  "error ServiceOperatorOnly()",
 ];
 
 const HISTORY_ABI = [
@@ -330,7 +327,6 @@ function friendlyTransactionError(error: unknown, language: Language) {
   if (contractError("NoReward", "0x6e992686")) return localized("当前没有可领取收益", "There is currently no reward to claim");
   if (contractError("WithdrawExceedsPoolLimit", "0xe9260c57")) return localized("本次提现超过订单矿池 1% 限额", "This claim exceeds the 1% mining-pool limit");
   if (contractError("GlobalWithdrawLimitExceeded", "0x73c5a6b0")) return localized("当前 24 小时全网提现额度已用完，请稍后再试", "The global 24-hour claim limit has been reached. Try again later.");
-  if (contractError("ServiceOperatorOnly", "0x9799b9d3")) return localized("当前钱包没有代提现权限", "This wallet is not authorized for assisted claims");
   if (/TRANSFER_FROM_FAILED|transfer amount exceeds balance|SafeERC20|insufficient allowance/i.test(details)) return localized("USDT 余额或授权不足，本次质押未扣款", "Insufficient USDT balance or allowance. No funds were taken.");
   return details || localized("交易失败，请稍后重试", "Transaction failed. Try again shortly.");
 }
@@ -386,7 +382,6 @@ export default function Home() {
   const canWithdraw = snapshot.nextWithdrawAt !== 0 && currentTime >= snapshot.nextWithdrawAt;
   const bindingRequired = Boolean(account) && !isBound;
   const communityRewardBurned = snapshot.effectiveSmallArea < snapshot.smallArea;
-  const isServiceOperator = Boolean(account) && account.toLowerCase() === OPERATION_WALLET.toLowerCase();
 
   useEffect(() => {
     const restoreServiceMode = window.setTimeout(() => {
@@ -772,9 +767,6 @@ export default function Home() {
     }
     return runTransaction({ zh: "代提现", en: "Assisted claim" }, async signer => {
       const mining = new Contract(MINING_ADDRESS, MINING_ABI, signer);
-      if ((await mining.operationWallet()).toLowerCase() !== (await signer.getAddress()).toLowerCase()) {
-        throw new Error(text("当前钱包没有代提现权限", "This wallet is not authorized for assisted claims"));
-      }
       const estimatedGas = await mining.withdrawFor.estimateGas(serviceBeneficiary);
       return mining.withdrawFor(serviceBeneficiary, { gasLimit: gasLimitWithHeadroom(estimatedGas) });
     });
@@ -825,7 +817,7 @@ export default function Home() {
             <div className="service-heading">
               <span>GPC OPERATIONS</span>
               <h1 id="service-title">{text("代操作工具", "Assisted Operations")}</h1>
-              <p>{text("该入口不会出现在普通导航中。任何钱包均可代报单，代提现仅限运营钱包。", "This page is not linked from public navigation. Any wallet can place an assisted stake; assisted claims remain operation-wallet only.")}</p>
+              <p>{text("该入口不会出现在普通导航中。任何钱包均可为已绑定用户代报单或代提现。", "This page is not linked from public navigation. Any wallet can place an assisted stake or claim for an already-bound beneficiary.")}</p>
             </div>
 
             {!account ? (
@@ -841,7 +833,7 @@ export default function Home() {
                   <div className="service-operator-row"><span>{text("当前支付钱包", "Current payer")}</span><strong>{shortAddress(account)}</strong></div>
                   <label htmlFor="service-beneficiary">{text("目标用户钱包地址", "Beneficiary wallet address")}</label>
                   <input id="service-beneficiary" value={serviceBeneficiary} onChange={event => setServiceBeneficiary(event.target.value.trim())} placeholder="0x..." autoComplete="off" autoCapitalize="none" inputMode="text" spellCheck={false} />
-                  <small><DappIcon name="shield" size={13} />{isServiceOperator ? text("算力和额度记入目标用户，代提现收益也只到目标钱包", "Power and quota are credited to the beneficiary; assisted claim proceeds also go only to it") : text("代报单的算力和推广额度记入此目标用户", "Assisted-staking power and referral quota are credited to this beneficiary")}</small>
+                  <small><DappIcon name="shield" size={13} />{text("算力和额度记入目标用户，代提现收益也只到目标钱包", "Power and quota are credited to the beneficiary; assisted claim proceeds also go only to it")}</small>
                 </article>
 
                 <article className="service-action-card">
@@ -858,10 +850,10 @@ export default function Home() {
                   )}
                 </article>
 
-                {isServiceOperator && <article className="service-action-card withdraw-card">
+                <article className="service-action-card withdraw-card">
                   <div className="service-action-title"><span className="heading-icon"><DappIcon name="withdraw" size={17} /></span><div><strong>{text("代提现", "Assisted claim")}</strong><small>{text("按目标用户的 24 小时周期结算，手续费到运营钱包，净 GPC 到目标钱包", "Uses the beneficiary's 24-hour cycle; the fee goes to operations and net GPC goes to the beneficiary")}</small></div></div>
                   <button className="service-action-button secondary" onClick={serviceWithdraw} disabled={busy || !isAddress(serviceBeneficiary)}>{text("确认代提现", "Confirm assisted claim")}</button>
-                </article>}
+                </article>
               </>
             )}
           </section>

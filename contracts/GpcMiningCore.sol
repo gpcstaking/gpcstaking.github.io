@@ -178,7 +178,6 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     error GlobalWithdrawLimitExceeded();
     error ProtectedToken();
     error CommunityRewardOverflow();
-    error ServiceOperatorOnly();
 
     function __GpcMiningCore_init(
         address usdt_,
@@ -397,11 +396,10 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     }
 
     /**
-     * @notice Lets the operation wallet trigger a user's available withdrawal.
-     * @dev Net GPC always transfers to the beneficiary, never to the operation caller.
+     * @notice Lets any wallet trigger a user's available withdrawal.
+     * @dev Net GPC always transfers to the beneficiary, never to the caller.
      */
     function withdrawFor(address beneficiary) external nonReentrant whenNotPaused {
-        if (msg.sender != operationWallet) revert ServiceOperatorOnly();
         _withdraw(beneficiary);
     }
 
