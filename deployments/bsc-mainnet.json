@@ -113,7 +113,8 @@
     "proxyDeploymentTx": "0xddd9fd5e043485f4c8ab06d5a94cbd6664410e8076fb93e0185bc9091b620ddb",
     "deployedAt": 1784281342,
     "deployedAtCst": "2026-07-17 17:42:22 CST",
-    "implementationVerified": true,
+    "implementationVerified": false,
+    "implementationVerificationNote": "On-chain runtime bytecode matches the compiled GpcMining artifact exactly; BscScan's verification API had not indexed the newly deployed implementation when verification was attempted.",
     "proxyVerified": false,
     "proxyVerificationNote": "Implementation verified on BscScan; proxy verification is blocked by the explorer API plan while ERC-1967 implementation and runtime state were verified directly on-chain."
   }
