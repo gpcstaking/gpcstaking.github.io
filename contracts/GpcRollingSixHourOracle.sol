@@ -14,8 +14,8 @@ import {IPancakePair} from './interfaces/IPancakePair.sol';
  */
 abstract contract GpcRollingSixHourOracle is GpcSixHourOracle {
     uint256 public constant OBSERVATION_INTERVAL = 5 minutes;
-    // Keep the five-minute sampling cadence, but tolerate short public-keeper scheduling delays.
-    // Reads still use the live cumulative price as their final point; this does not freeze prices.
+    // Operational alert threshold only. Price reads continue through the TWAP/spot fallback chain
+    // when the keeper is delayed, so this constant must not be used as a business-stop condition.
     uint256 public constant MAX_PRICE_AGE = 30 minutes;
     uint16 public constant MAX_OBSERVATIONS = 74;
     uint8 public constant MODE_SPOT = 0;
@@ -113,7 +113,7 @@ abstract contract GpcRollingSixHourOracle is GpcSixHourOracle {
     }
 
     function isReady() external view override returns (bool) {
-        return rollingInitialized && block.timestamp <= uint256(lastObservationTimestamp) + MAX_PRICE_AGE;
+        return rollingInitialized;
     }
 
     function nextUpdateAt() external view override returns (uint256) {
@@ -144,7 +144,6 @@ abstract contract GpcRollingSixHourOracle is GpcSixHourOracle {
 
     function _requireFresh() internal view override {
         if (!rollingInitialized) revert PriceUnavailable();
-        if (block.timestamp > uint256(lastObservationTimestamp) + MAX_PRICE_AGE) revert PriceStale();
     }
 
     function _livePrices() private view returns (uint256 gpcInUsdt, uint256 wbnbInUsdt) {
@@ -185,14 +184,23 @@ abstract contract GpcRollingSixHourOracle is GpcSixHourOracle {
             }
         }
 
-        RollingObservation storage oldest = _observationByPosition(0);
-        uint256 availableWindow = uint256(currentTimestamp) - uint256(oldest.timestamp);
+        uint256 count = _rollingObservations.length;
+        RollingObservation storage fallbackObservation = _observationByPosition(0);
+        if (count > 1 && uint256(currentTimestamp) >= PERIOD) {
+            uint32 targetTimestamp = uint32(uint256(currentTimestamp) - PERIOD);
+            RollingObservation storage newest = _observationByPosition(count - 1);
+            // After a prolonged keeper outage every stored point can be older than the desired
+            // six-hour boundary. Use the newest point so the fallback covers the shortest and
+            // most recent available cumulative-price window instead of an unnecessarily old one.
+            if (newest.timestamp < targetTimestamp) fallbackObservation = newest;
+        }
+        uint256 availableWindow = uint256(currentTimestamp) - uint256(fallbackObservation.timestamp);
         if (availableWindow != 0) {
             (gpcInUsdt, wbnbInUsdt) = _pricesFromCumulatives(
                 currentGpcCumulative,
                 currentWbnbCumulative,
-                oldest.gpcWbnbCumulative,
-                oldest.wbnbUsdtCumulative,
+                fallbackObservation.gpcWbnbCumulative,
+                fallbackObservation.wbnbUsdtCumulative,
                 availableWindow
             );
             return (gpcInUsdt, wbnbInUsdt, availableWindow, MODE_PARTIAL_TWAP);

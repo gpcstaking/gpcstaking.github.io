@@ -78,7 +78,7 @@ describe('GpcSixHourOracle', function () {
     expect(nextPrice).to.be.lessThan(ethers.parseEther('1'));
   });
 
-  it('tolerates a short keeper delay and expires after thirty minutes', async function () {
+  it('keeps serving the six-hour TWAP after the keeper exceeds the alert threshold', async function () {
     const { oracle } = await loadFixture(deployFixture);
     await recordIntervals(oracle, 72);
     await time.increase(10 * 60 + 1);
@@ -88,8 +88,25 @@ describe('GpcSixHourOracle', function () {
 
     await time.increase(20 * 60);
 
-    await expect(oracle.price()).to.be.revertedWithCustomError(oracle, 'PriceStale');
-    expect(await oracle.isReady()).to.equal(false);
+    expect(await oracle.price()).to.be.closeTo(ethers.parseEther('0.5'), 1_000n);
+    expect(await oracle.bnbPrice()).to.be.closeTo(ethers.parseEther('500'), 1_000n);
+    expect(await oracle.isReady()).to.equal(true);
+    const [mode, windowSeconds] = await oracle.priceStatus();
+    expect(mode).to.equal(2);
+    expect(windowSeconds).to.equal(6 * 60 * 60);
+  });
+
+  it('uses the newest available cumulative window after a prolonged keeper outage', async function () {
+    const { oracle } = await loadFixture(deployFixture);
+    await recordIntervals(oracle, 72);
+    await time.increase(7 * 60 * 60);
+
+    expect(await oracle.isReady()).to.equal(true);
+    expect(await oracle.price()).to.be.closeTo(ethers.parseEther('0.5'), 1_000n);
+    const [mode, windowSeconds] = await oracle.priceStatus();
+    expect(mode).to.equal(1);
+    expect(windowSeconds).to.be.greaterThanOrEqual(7 * 60 * 60);
+    expect(windowSeconds).to.be.lessThan(7 * 60 * 60 + 10);
   });
 
   it('starts a clean rolling observation window during a legacy upgrade', async function () {

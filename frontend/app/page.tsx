@@ -514,7 +514,8 @@ export default function Home() {
     try {
       reward = await mining.quoteRewards(activeAccount);
     } catch {
-      // The oracle deliberately rejects quotes before its first six-hour update or while stale.
+      // A false result means the rolling oracle has not been initialized. Keeper delays use the
+      // on-chain full-TWAP, available-history, and spot-price fallback chain instead of stopping.
     }
 
     setSnapshot({

@@ -23,7 +23,7 @@ async function main() {
     const lastUpdatedAt = await oracle.lastUpdatedAt();
     const pendingFirstObservation = lastUpdatedAt === 0n;
     if (!pendingFirstObservation || process.env.ALLOW_PENDING_ORACLE_BOOTSTRAP !== 'yes') {
-      throw new Error('Oracle is not initialized or its price is stale');
+      throw new Error('Oracle is not initialized');
     }
     console.warn(
       `WARNING: mining will be deployed before the first TWAP publication; orders stay blocked until ${await oracle.nextUpdateAt()}`
