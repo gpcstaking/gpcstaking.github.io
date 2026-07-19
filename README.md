@@ -4,8 +4,8 @@ This repository contains a new BSC mining system and six-hour PancakeSwap TWAP o
 
 The proxy separates permissions:
 
-- `GpcMining.owner()` controls pause/unpause and unsupported-token recovery and is initialized to the mining TimelockController, not the operation wallet.
-- Each proxy has its own `ProxyAdmin`; the admins must be owned by separate TimelockController contracts with at least a 48-hour delay.
+- `GpcMining.owner()` controls pause/unpause and unsupported-token recovery and is separate from the operation wallet.
+- The replacement mining and history proxies have separate `ProxyAdmin` contracts, both owned by the designated 2-of-3 Safe.
 - Both implementation constructors disable initializers so the implementation contracts cannot be taken over directly.
 
 ## Mainnet constants
@@ -14,26 +14,28 @@ The proxy separates permissions:
 - USDT: `0x55d398326f99059fF775485246999027B3197955`
 - WBNB: `0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c`
 - Pancake Router: `0x10ED43C718714eb63d5aA57B78B54704E256024E`
-- Operation wallet: `0xA04509c94567B47E1F08CF81EbEDF09F663943c9`
+- Operation wallet: `0xC34622e54f259304877A10A901caa332250A84f5` (Safe 2-of-3)
 
 ## Current BSC deployment
 
-- Deployer and temporary upgrade owner: `0xB7924467cEce8FD55dA013d8cFe2333173c9C236`
+- Deployer and mining business owner: `0xB7924467cEce8FD55dA013d8cFe2333173c9C236`
 - Oracle proxy: `0x7c7CdA7C435776815606879390523c6486C0b0fB`
-- Oracle implementation: `0x17C2DBa615C4e43074eeA98Ea6FFCeA62C599747`
+- Oracle implementation: `0x2FA0AA852e99B7fE647819381301bF51A725801E`
 - Oracle ProxyAdmin: `0xcCbde183E2D5c945500CF19CFa3EFd31b877611C`
 - Oracle keeper: `0x3bEacEd5Ad0806F3536cdCcA82625309D5CF6F4A`
 - Oracle keeper service: Cloudflare Worker `gpc-oracle-keeper`, checking once per minute and writing only when the five-minute observation is due
 - Rolling Oracle upgrade: `2026-07-17 18:07:31 CST`
-- Mining proxy: `0x7C7C849734ea94a590266F90B5fD63D555ed3ca3`
-- Mining implementation: `0xe524DEfA6E67E7c7a02f045e48333CEF257CB435`
-- On-chain history proxy: `0x7FA470657148AeB586113968B7A427C734293DD0`
-- On-chain history implementation: `0xfc7D11563de08a97D5646664D8aF3491e5e4e4A8`
-- On-chain history ProxyAdmin: `0x9Dabe9298FCF022BD9374ee75210065018E8a482`
-- Mining ProxyAdmin: `0x22FA01523a7b681F09ed181fBB2A096d2Ca5Cb56`
+- Mining proxy: `0xB78A5ed9166c894C3ca3C7acD102378bab6da89D`
+- Mining implementation: `0x102d567bA16b3f693054d5b466909361aa39138E`
+- Mining ProxyAdmin: `0x2202Cd78D61274c02F7BDB8A92Fb99489B24D97A`
+- On-chain history proxy: `0x1b525f3F0e9009926255eD347177Ee0efB862CDc`
+- On-chain history implementation: `0xafC374B119B796626e57693273Cf540d911DA949`
+- On-chain history ProxyAdmin: `0x2222f6872BC8f962Dd76fFEAFc01fA06A8f75e7F`
+- Mining/history ProxyAdmin owner: `0xA115A26023eF5072057DBF9Ef43C2f61F79F38b7` (Safe 2-of-3)
+- Retired mining proxy: `0x7C7C849734ea94a590266F90B5fD63D555ed3ca3` (paused, zero GPC balance)
 - DApp: `https://gpcstaking.github.io/`
 
-This testing deployment intentionally uses the deployer EOA as the temporary ProxyAdmin owner. Set both `ALLOW_MAINNET_DEPLOY=yes` and `ALLOW_TEMPORARY_EOA_ADMIN=yes` to use this mode. Before production operation, transfer both ProxyAdmin contracts and the mining business ownership to the approved multisig/Timelock setup.
+The replacement mining and history ProxyAdmin contracts are controlled by the designated Safe. The deployer remains the separate business owner for pause/unpause until a later explicit business-ownership handover.
 
 ## Local verification
 
@@ -59,9 +61,10 @@ Copy `.env.example` to an untracked `.env`. Set `PRIVATE_KEY`, `BSC_RPC_URL`, `B
 
 1. Make a storage-compatible implementation change and add a reinitializer only if the new version needs new state initialization. If used, set `UPGRADE_CALLDATA` to that encoded reinitializer call.
 2. Run the full test suite and OpenZeppelin storage-layout validation.
-3. For mining, set `MINING_PROXY_ADDRESS` and run `ALLOW_MAINNET_DEPLOY=yes npm run prepare-upgrade:mining`.
-4. For the oracle, keep `ORACLE_ADDRESS` set to its proxy and run `ALLOW_MAINNET_DEPLOY=yes npm run prepare-upgrade:oracle`.
-5. Review the printed new implementation, ProxyAdmin target, predecessor, salt, and delay. Submit the generated `schedule` calldata to the printed TimelockController address through its authorized proposer, wait for the delay, then submit the generated `execute` calldata to that same TimelockController. Never send `upgradeAndCall` directly from a multisig to ProxyAdmin.
+3. For mining, set `MINING_PROXY_ADDRESS` and `MINING_PROXY_ADMIN_ADDRESS`, then run `ALLOW_MAINNET_DEPLOY=yes npm run prepare-upgrade:mining`.
+4. For history, set `HISTORY_REGISTRY_ADDRESS` and `HISTORY_PROXY_ADMIN_ADDRESS`, then run `ALLOW_MAINNET_DEPLOY=yes npm run prepare-upgrade:history`.
+5. For the oracle, keep `ORACLE_ADDRESS` set to its proxy and run `ALLOW_MAINNET_DEPLOY=yes npm run prepare-upgrade:oracle`.
+6. For mining/history, review the printed implementation and submit the generated ProxyAdmin call through the designated 2-of-3 Safe. The oracle continues to use its separately configured upgrade path.
 
 Never reorder, remove, or change the type of existing storage fields. New mining fields must consume slots from `GpcMiningCore.__gap`; new oracle fields must consume slots from `GpcSixHourOracle.__gap`.
 

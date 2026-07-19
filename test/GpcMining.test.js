@@ -232,6 +232,32 @@ describe('GpcMiningCore', function () {
     expect(await upgraded.owner()).to.equal(deployer.address);
   });
 
+  it('retires the paused legacy pool only to the fixed replacement operation Safe', async function () {
+    const { deployer, operation, alice, gpc, mining, bindAndOrder } = await loadFixture(deployFixture);
+    await bindAndOrder(alice, operation);
+
+    const retirementRecipient = '0xC34622e54f259304877A10A901caa332250A84f5';
+    const proxyBalance = await gpc.balanceOf(mining.target);
+    expect(proxyBalance).to.equal(e('6500'));
+    expect(await mining.miningPoolGpc()).to.equal(proxyBalance);
+
+    const Retirement = await ethers.getContractFactory('GpcMiningRetirementHarness');
+    const retired = await upgrades.upgradeProxy(mining.target, Retirement, { kind: 'transparent' });
+
+    await expect(retired.connect(alice).retireOldMiningPool())
+      .to.be.revertedWith('Ownable: caller is not the owner');
+    await expect(retired.connect(deployer).retireOldMiningPool())
+      .to.be.revertedWith('Pausable: not paused');
+
+    await retired.connect(deployer).pause();
+    await retired.connect(deployer).retireOldMiningPool();
+
+    expect(await retired.paused()).to.equal(true);
+    expect(await retired.miningPoolGpc()).to.equal(0);
+    expect(await gpc.balanceOf(retired.target)).to.equal(0);
+    expect(await gpc.balanceOf(retirementRecipient)).to.equal(proxyBalance);
+  });
+
   it('passes OpenZeppelin validation for the mainnet transparent-proxy implementation', async function () {
     const Mining = await ethers.getContractFactory('GpcMining');
     await upgrades.validateImplementation(Mining, { kind: 'transparent' });
