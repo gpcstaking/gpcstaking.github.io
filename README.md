@@ -5,7 +5,7 @@ This repository contains a new BSC mining system and six-hour PancakeSwap TWAP o
 The proxy separates permissions:
 
 - `GpcMining.owner()` controls pause/unpause and unsupported-token recovery and is separate from the operation wallet.
-- The replacement mining and history proxies have separate `ProxyAdmin` contracts, both owned by the designated 2-of-3 Safe.
+- Oracle, replacement mining, and history have separate `ProxyAdmin` contracts, all owned by the designated 2-of-3 Safe.
 - Both implementation constructors disable initializers so the implementation contracts cannot be taken over directly.
 
 ## Mainnet constants
@@ -22,6 +22,7 @@ The proxy separates permissions:
 - Oracle proxy: `0x7c7CdA7C435776815606879390523c6486C0b0fB`
 - Oracle implementation: `0x2FA0AA852e99B7fE647819381301bF51A725801E`
 - Oracle ProxyAdmin: `0xcCbde183E2D5c945500CF19CFa3EFd31b877611C`
+- Oracle ProxyAdmin owner: `0xA115A26023eF5072057DBF9Ef43C2f61F79F38b7` (Safe 2-of-3)
 - Oracle keeper: `0x3bEacEd5Ad0806F3536cdCcA82625309D5CF6F4A`
 - Oracle keeper service: Cloudflare Worker `gpc-oracle-keeper`, checking once per minute and writing only when the five-minute observation is due
 - Rolling Oracle upgrade: `2026-07-17 18:07:31 CST`
@@ -35,7 +36,7 @@ The proxy separates permissions:
 - Retired mining proxy: `0x7C7C849734ea94a590266F90B5fD63D555ed3ca3` (paused, zero GPC balance)
 - DApp: `https://gpcstaking.github.io/`
 
-The replacement mining and history ProxyAdmin contracts are controlled by the designated Safe. The deployer remains the separate business owner for pause/unpause until a later explicit business-ownership handover.
+The Oracle, replacement mining, and history ProxyAdmin contracts are controlled by the designated Safe. The deployer remains the separate mining business owner for pause/unpause until a later explicit business-ownership handover.
 
 ## Local verification
 
@@ -63,8 +64,8 @@ Copy `.env.example` to an untracked `.env`. Set `PRIVATE_KEY`, `BSC_RPC_URL`, `B
 2. Run the full test suite and OpenZeppelin storage-layout validation.
 3. For mining, set `MINING_PROXY_ADDRESS` and `MINING_PROXY_ADMIN_ADDRESS`, then run `ALLOW_MAINNET_DEPLOY=yes npm run prepare-upgrade:mining`.
 4. For history, set `HISTORY_REGISTRY_ADDRESS` and `HISTORY_PROXY_ADMIN_ADDRESS`, then run `ALLOW_MAINNET_DEPLOY=yes npm run prepare-upgrade:history`.
-5. For the oracle, keep `ORACLE_ADDRESS` set to its proxy and run `ALLOW_MAINNET_DEPLOY=yes npm run prepare-upgrade:oracle`.
-6. For mining/history, review the printed implementation and submit the generated ProxyAdmin call through the designated 2-of-3 Safe. The oracle continues to use its separately configured upgrade path.
+5. For the oracle, set `ORACLE_ADDRESS` and `ORACLE_PROXY_ADMIN_ADDRESS`, then run `ALLOW_MAINNET_DEPLOY=yes npm run prepare-upgrade:oracle`.
+6. Review the printed implementation and submit the generated ProxyAdmin call through the designated 2-of-3 Safe.
 
 Never reorder, remove, or change the type of existing storage fields. New mining fields must consume slots from `GpcMiningCore.__gap`; new oracle fields must consume slots from `GpcSixHourOracle.__gap`.
 
