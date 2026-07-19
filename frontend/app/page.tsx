@@ -773,7 +773,7 @@ export default function Home() {
     return runTransaction({ zh: "代提现", en: "Assisted claim" }, async signer => {
       const mining = new Contract(MINING_ADDRESS, MINING_ABI, signer);
       if ((await mining.operationWallet()).toLowerCase() !== (await signer.getAddress()).toLowerCase()) {
-        throw new Error(text("当前钱包没有代操作权限", "This wallet is not authorized for assisted operations"));
+        throw new Error(text("当前钱包没有代提现权限", "This wallet is not authorized for assisted claims"));
       }
       const estimatedGas = await mining.withdrawFor.estimateGas(serviceBeneficiary);
       return mining.withdrawFor(serviceBeneficiary, { gasLimit: gasLimitWithHeadroom(estimatedGas) });
