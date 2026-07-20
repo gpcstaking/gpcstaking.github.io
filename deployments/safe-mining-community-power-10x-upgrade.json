@@ -1,0 +1,44 @@
+{
+  "version": "1.0",
+  "chainId": "56",
+  "createdAt": 1784551634000,
+  "meta": {
+    "name": "GPC Mining Community Effective Power 10x Upgrade",
+    "description": "Upgrade mining to increase the effective small-area power cap from 5x to 10x personal power. The all-or-nothing community reward burn rule and 10% community reward rate remain unchanged.",
+    "txBuilderVersion": "1.18.0",
+    "createdFromSafeAddress": "0xA115A26023eF5072057DBF9Ef43C2f61F79F38b7"
+  },
+  "transactions": [
+    {
+      "to": "0x2202Cd78D61274c02F7BDB8A92Fb99489B24D97A",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+            "internalType": "contract ITransparentUpgradeableProxy",
+            "name": "proxy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "implementation",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "name": "upgradeAndCall",
+        "payable": true
+      },
+      "contractInputsValues": {
+        "proxy": "0xB78A5ed9166c894C3ca3C7acD102378bab6da89D",
+        "implementation": "0x1cD2d8Ea27AD5A9B3876ed71220d50E123d54f1B",
+        "data": "0x"
+      }
+    }
+  ]
+}

@@ -67,7 +67,7 @@ describe('GpcMiningCore', function () {
     await history.waitForDeployment();
     await mining.initializeHistoryTracking(history.target);
 
-    for (const signer of signers.slice(2, 12)) {
+    for (const signer of signers.slice(2, 20)) {
       await usdt.mint(signer.address, e('20000'));
       await usdt.connect(signer).approve(mining.target, ethers.MaxUint256);
     }
@@ -440,16 +440,16 @@ describe('GpcMiningCore', function () {
     const { signers, operation, alice, oracle, mining, bindAndOrder } = await loadFixture(deployFixture);
 
     await bindAndOrder(alice, operation);
-    for (const child of signers.slice(3, 10)) {
+    for (const child of signers.slice(3, 15)) {
       await bindAndOrder(child, alice);
     }
     await oracle.setPrices(e('0.1'), e('500'));
 
     const community = await mining.communityPower(alice.address);
-    expect(community.total).to.equal(e('14000'));
+    expect(community.total).to.equal(e('24000'));
     expect(community.largestBranchPower).to.equal(e('2000'));
-    expect(community.smallArea).to.equal(e('12000'));
-    expect(community.effectiveSmallArea).to.equal(e('10000'));
+    expect(community.smallArea).to.equal(e('22000'));
+    expect(community.effectiveSmallArea).to.equal(e('20000'));
 
     const quote = await mining.quoteRewards(alice.address);
     expect(quote.poolLimitedMode).to.equal(false);
@@ -462,18 +462,18 @@ describe('GpcMiningCore', function () {
     const { signers, operation, alice, oracle, mining, bindAndOrder } = await loadFixture(deployFixture);
 
     await bindAndOrder(alice, operation);
-    for (const child of signers.slice(3, 9)) {
+    for (const child of signers.slice(3, 14)) {
       await bindAndOrder(child, alice);
     }
     await oracle.setPrices(e('0.1'), e('500'));
 
     const community = await mining.communityPower(alice.address);
-    expect(community.smallArea).to.equal(e('10000'));
-    expect(community.effectiveSmallArea).to.equal(e('10000'));
+    expect(community.smallArea).to.equal(e('20000'));
+    expect(community.effectiveSmallArea).to.equal(e('20000'));
 
     const quote = await mining.quoteRewards(alice.address);
-    expect(quote.communityRewardUsdt).to.equal(e('2.5'));
-    expect(quote.totalRewardUsdt).to.equal(e('7.5'));
+    expect(quote.communityRewardUsdt).to.equal(e('5'));
+    expect(quote.totalRewardUsdt).to.equal(e('10'));
   });
 
   it('uses the 1% pool formula below the threshold and allows exactly 1% of the pool', async function () {

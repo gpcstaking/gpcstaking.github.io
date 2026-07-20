@@ -515,8 +515,8 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         if (heap.length != 0) largestBranchPower = branchPower[account][heap[0]];
         smallArea = total - largestBranchPower;
 
-        uint256 fiveTimesPersonal = users[account].power * 5;
-        effectiveSmallArea = Math.min(smallArea, fiveTimesPersonal);
+        uint256 tenTimesPersonal = users[account].power * 10;
+        effectiveSmallArea = Math.min(smallArea, tenTimesPersonal);
     }
 
     function directReferralCount(address account) external view returns (uint256) {
@@ -680,7 +680,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
 
         (, , quote.smallAreaPower, quote.effectiveSmallAreaPower) = communityPower(account);
         quote.poolLimitedMode = quote.poolValueUsdt * 20 < totalPower * 5;
-        // Community rewards are all-or-nothing. If the 5x personal-power cap cannot
+        // Community rewards are all-or-nothing. If the 10x personal-power cap cannot
         // cover the complete small area, the entire community reward is burned.
         uint256 rewardedSmallAreaPower = quote.effectiveSmallAreaPower >= quote.smallAreaPower
             ? quote.effectiveSmallAreaPower

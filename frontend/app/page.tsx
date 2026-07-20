@@ -1064,7 +1064,7 @@ export default function Home() {
               <button className="direct-load-more" onClick={loadMoreReferrals} disabled={referralsLoading}>{referralsLoading ? text("读取中…", "Loading…") : text("加载更多", "Load more")}</button>
             )}
           </article>
-          <div className="burn-note"><DappIcon name="shield" size={16} /><div><strong>{text("社区收益全额烧伤规则", "Full community reward burn")}</strong><span>{text("小区有效算力低于小区总算力时，社区收益为 0 并全部烧伤；只有有效算力覆盖全部小区总算力时，才获得 10% 小区奖励。", "If effective power is below total small-area power, the full community reward is burned to zero. The 10% reward is paid only when effective power covers the entire small area.")}</span></div></div>
+          <div className="burn-note"><DappIcon name="shield" size={16} /><div><strong>{text("社区收益全额烧伤规则", "Full community reward burn")}</strong><span>{text("小区有效算力最高为个人算力的 10 倍；低于小区总算力时，社区收益为 0 并全部烧伤，覆盖全部小区总算力时才获得 10% 小区奖励。", "Effective small-area power is capped at 10× personal power. If it is below total small-area power, the full community reward is burned to zero; the 10% reward is paid only when it covers the entire small area.")}</span></div></div>
         </div>
 
         <div className="tab-page" hidden={serviceMode || activeTab !== "ecosystem"}>

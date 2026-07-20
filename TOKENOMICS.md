@@ -41,7 +41,7 @@ Static plus community rewards are capped at 0.5% of current personal power. The 
 
 ## Community and risk controls
 
-For each user, the largest direct referral branch is removed. All other branch power is the small area. Effective small-area power is `min(smallArea, personalPower × 5)`. If effective small-area power is lower than the complete small area, the entire community reward is burned and the community reward is zero. A community reward is paid only when effective small-area power covers the complete small area. Referral depth is limited to 30.
+For each user, the largest direct referral branch is removed. All other branch power is the small area. Effective small-area power is `min(smallArea, personalPower × 10)`. If effective small-area power is lower than the complete small area, the entire community reward is burned and the community reward is zero. A community reward is paid only when effective small-area power covers the complete small area. Referral depth is limited to 30.
 
 Withdrawals are available once per 24 hours and never accrue missed days. A new order resets only the 24-hour timer. A single user's gross daily GPC withdrawal above 1% of the accounted mining pool reverts the entire withdrawal. Aggregate gross withdrawals across all users are additionally capped at 2% of the mining-pool balance captured at the start of each 24-hour global window. Each gross GPC withdrawal sends 90% to the beneficiary, 5% to the burn address, and 5% to the operation wallet.
 
