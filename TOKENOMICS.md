@@ -30,12 +30,12 @@ The production DApp pins the audited Mining proxy and uses bounded direct-referr
 When `poolValue × 20 / totalPower < 5`:
 
 - Static: `1% × poolValue × personalPower / totalPower`
-- Community, only when `effectiveSmallArea >= smallArea`: `1% × poolValue × effectiveSmallArea / totalPower × 5%`
+- Community, only when `effectiveSmallArea >= smallArea`: `1% × poolValue × effectiveSmallArea / totalPower × 10%`
 
 Otherwise:
 
 - Static: `personalPower × 0.25%`
-- Community, only when `effectiveSmallArea >= smallArea`: `effectiveSmallArea × 0.25% × 5%`
+- Community, only when `effectiveSmallArea >= smallArea`: `effectiveSmallArea × 0.25% × 10%`
 
 Static plus community rewards are capped at 0.5% of current personal power. The paid USDT-value reward is deducted from personal power and converted to GPC using the six-hour TWAP.
 

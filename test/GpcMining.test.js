@@ -333,27 +333,28 @@ describe('GpcMiningCore', function () {
     expect(community.effectiveSmallArea).to.equal(e('2000'));
 
     const quote = await mining.quoteRewards(alice.address);
+    expect(await mining.COMMUNITY_RATE_BPS()).to.equal(1_000);
     expect(quote.poolLimitedMode).to.equal(false);
     expect(quote.staticRewardUsdt).to.equal(e('5'));
-    expect(quote.communityRewardUsdt).to.equal(e('0.25'));
-    expect(quote.totalRewardUsdt).to.equal(e('5.25'));
-    expect(quote.grossGpc).to.equal(e('52.5'));
+    expect(quote.communityRewardUsdt).to.equal(e('0.5'));
+    expect(quote.totalRewardUsdt).to.equal(e('5.5'));
+    expect(quote.grossGpc).to.equal(e('55'));
 
     await time.increase(24 * 60 * 60);
     await expect(mining.connect(alice).withdraw()).to.emit(mining, 'Withdrawn');
-    expect(await gpc.balanceOf(alice.address)).to.equal(e('47.25'));
-    expect(await gpc.balanceOf(DEAD_ADDRESS)).to.equal(e('2.625'));
-    expect(await gpc.balanceOf(operation.address)).to.equal(e('2.625'));
-    expect((await mining.users(alice.address)).power).to.equal(e('1994.75'));
-    expect(await mining.communityClaimedToday(alice.address)).to.equal(e('0.25'));
+    expect(await gpc.balanceOf(alice.address)).to.equal(e('49.5'));
+    expect(await gpc.balanceOf(DEAD_ADDRESS)).to.equal(e('2.75'));
+    expect(await gpc.balanceOf(operation.address)).to.equal(e('2.75'));
+    expect((await mining.users(alice.address)).power).to.equal(e('1994.5'));
+    expect(await mining.communityClaimedToday(alice.address)).to.equal(e('0.5'));
     const storedCommunityEarnings = await mining.dailyCommunityEarnings(alice.address);
-    expect(storedCommunityEarnings.rewardUsdt).to.equal(e('0.25'));
+    expect(storedCommunityEarnings.rewardUsdt).to.equal(e('0.5'));
     expect(storedCommunityEarnings.day).to.be.greaterThan(0);
 
     const [powerHistory, powerHistoryTotal] = await history.powerHistory(alice.address, 0, 30);
     expect(powerHistoryTotal).to.equal(2);
     expect(powerHistory[0].kind).to.equal(await history.POWER_HISTORY_WITHDRAW());
-    expect(powerHistory[0].amount).to.equal(e('5.25'));
+    expect(powerHistory[0].amount).to.equal(e('5.5'));
     expect(powerHistory[1].kind).to.equal(await history.POWER_HISTORY_ORDER());
     expect(powerHistory[1].amount).to.equal(e('2000'));
 
@@ -471,8 +472,8 @@ describe('GpcMiningCore', function () {
     expect(community.effectiveSmallArea).to.equal(e('10000'));
 
     const quote = await mining.quoteRewards(alice.address);
-    expect(quote.communityRewardUsdt).to.equal(e('1.25'));
-    expect(quote.totalRewardUsdt).to.equal(e('6.25'));
+    expect(quote.communityRewardUsdt).to.equal(e('2.5'));
+    expect(quote.totalRewardUsdt).to.equal(e('7.5'));
   });
 
   it('uses the 1% pool formula below the threshold and allows exactly 1% of the pool', async function () {

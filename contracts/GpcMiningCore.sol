@@ -32,7 +32,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
 
     uint256 public constant BPS = 10_000;
     uint256 public constant FIXED_DAILY_RATE_BPS = 25; // 0.25%
-    uint256 public constant COMMUNITY_RATE_BPS = 500; // 5%
+    uint256 public constant COMMUNITY_RATE_BPS = 1_000; // 10%
     uint256 public constant MAX_DAILY_RATE_BPS = 50; // 0.50%, static + community
     uint256 public constant WITHDRAW_FEE_BPS = 1_000; // 10% total: 5% burn + 5% operations
     uint256 private constant WITHDRAW_BURN_BPS = 500; // 5%
