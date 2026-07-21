@@ -121,6 +121,35 @@ describe('GpcMiningCore', function () {
     expect(await mining.miningPoolGpc()).to.equal(e('13000'));
   });
 
+  it('exposes mining power as a non-transferable ERC20-compatible balance', async function () {
+    const { operation, alice, bob, mining, bindAndOrder } = await loadFixture(deployFixture);
+
+    expect(await mining.name()).to.equal('GPC STAKING');
+    expect(await mining.symbol()).to.equal('GS');
+    expect(await mining.decimals()).to.equal(18);
+    expect(await mining.totalSupply()).to.equal(0);
+    expect(await mining.balanceOf(alice.address)).to.equal(0);
+
+    await expect(bindAndOrder(alice, operation))
+      .to.emit(mining, 'Transfer')
+      .withArgs(ethers.ZeroAddress, alice.address, e('2000'));
+
+    expect(await mining.balanceOf(alice.address)).to.equal(e('2000'));
+    expect(await mining.totalSupply()).to.equal(await mining.totalPower());
+
+    await expect(mining.connect(alice).approve(bob.address, e('10')))
+      .to.emit(mining, 'Approval')
+      .withArgs(alice.address, bob.address, e('10'));
+    expect(await mining.allowance(alice.address, bob.address)).to.equal(e('10'));
+
+    await expect(mining.connect(alice).transfer(bob.address, e('1')))
+      .to.be.revertedWithCustomError(mining, 'PowerNonTransferable');
+    await expect(mining.connect(bob).transferFrom(alice.address, bob.address, e('1')))
+      .to.be.revertedWithCustomError(mining, 'PowerNonTransferable');
+    expect(await mining.balanceOf(alice.address)).to.equal(e('2000'));
+    expect(await mining.balanceOf(bob.address)).to.equal(0);
+  });
+
   it('allows the referral-root node to order based on topology and keeps its sponsorless share in operations', async function () {
     const { operation, usdt, mining } = await loadFixture(deployFixture);
 

@@ -72,6 +72,15 @@ async function main() {
   if ((await mining.parentOf(OPERATION_WALLET)).toLowerCase() !== miningProxy.toLowerCase()) {
     throw new Error('Replacement referral root was not initialized');
   }
+  if ((await mining.name()) !== 'GPC STAKING') {
+    throw new Error('Replacement ERC20-compatible name mismatch');
+  }
+  if ((await mining.symbol()) !== 'GS') {
+    throw new Error('Replacement ERC20-compatible symbol mismatch');
+  }
+  if ((await mining.decimals()) !== 18n || (await mining.totalSupply()) !== 0n) {
+    throw new Error('Replacement ERC20-compatible initial state mismatch');
+  }
 
   const History = await ethers.getContractFactory('GpcHistoryRegistry', deployer);
   const history = await upgrades.deployProxy(History, [miningProxy, deployerAddress], {
@@ -111,6 +120,8 @@ async function main() {
   console.log('Business owner:', await mining.owner());
   console.log('Operation wallet:', await mining.operationWallet());
   console.log('Oracle:', await mining.oracle());
+  console.log('Power token name:', await mining.name());
+  console.log('Power token symbol:', await mining.symbol());
 }
 
 main().catch(error => {

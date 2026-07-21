@@ -2,6 +2,7 @@
 pragma solidity ^0.8.21;
 
 import {IERC20} from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
+import {IERC20Metadata} from '@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol';
 import {SafeERC20} from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import {Math} from '@openzeppelin/contracts/utils/math/Math.sol';
 import {Initializable} from '@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol';
@@ -19,7 +20,13 @@ import {IGpcHistoryRegistry} from './interfaces/IGpcHistoryRegistry.sol';
  * @notice Fixed USDT orders, GPC mining rewards and 30-level community accounting.
  * @dev Production addresses are supplied by GpcMining. This core accepts addresses so it can be tested locally.
  */
-abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
+abstract contract GpcMiningCore is
+    Initializable,
+    Ownable2StepUpgradeable,
+    PausableUpgradeable,
+    ReentrancyGuardUpgradeable,
+    IERC20Metadata
+{
     using SafeERC20 for IERC20;
 
     uint256 public constant ORDER_USDT = 1_000 ether;
@@ -57,6 +64,10 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     uint8 private constant QUOTA_HISTORY_ORDER = 1;
     uint8 private constant QUOTA_HISTORY_REFERRAL = 2;
     address private constant BURN_ADDRESS = 0x000000000000000000000000000000000000dEaD;
+
+    string public constant override name = 'GPC STAKING';
+    string public constant override symbol = 'GS';
+    uint8 public constant override decimals = 18;
 
     struct UserInfo {
         uint256 power;
@@ -129,8 +140,13 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
 
     IGpcHistoryRegistry public historyRegistry;
 
+    // ERC20-compatible approvals are exposed for wallet and explorer compatibility.
+    // Mining power itself stays non-transferable so referral accounting, withdrawal
+    // cooldowns and inactivity expiry cannot be bypassed by moving balances.
+    mapping(address => mapping(address => uint256)) private _powerAllowances;
+
     // Reserved storage slots for future implementation upgrades.
-    uint256[31] private __gap;
+    uint256[30] private __gap;
 
     event ReferralBound(address indexed user, address indexed parent, uint256 depth);
     event OrderPlaced(
@@ -183,6 +199,7 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
     error GlobalWithdrawLimitExceeded();
     error ProtectedToken();
     error CommunityRewardOverflow();
+    error PowerNonTransferable();
 
     function __GpcMiningCore_init(
         address usdt_,
@@ -234,6 +251,39 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         if (registry == address(0) || registry.code.length == 0) revert ZeroAddress();
         historyRegistry = IGpcHistoryRegistry(registry);
         emit HistoryTrackingInitialized(registry);
+    }
+
+    /**
+     * @notice ERC20-compatible supply view backed by the protocol's total mining power.
+     */
+    function totalSupply() external view override returns (uint256) {
+        return totalPower;
+    }
+
+    /**
+     * @notice ERC20-compatible balance view backed by the user's current mining power.
+     */
+    function balanceOf(address account) external view override returns (uint256) {
+        return users[account].power;
+    }
+
+    function allowance(address account, address spender) external view override returns (uint256) {
+        return _powerAllowances[account][spender];
+    }
+
+    function approve(address spender, uint256 amount) external override returns (bool) {
+        if (spender == address(0)) revert ZeroAddress();
+        _powerAllowances[msg.sender][spender] = amount;
+        emit Approval(msg.sender, spender, amount);
+        return true;
+    }
+
+    function transfer(address, uint256) external pure override returns (bool) {
+        revert PowerNonTransferable();
+    }
+
+    function transferFrom(address, address, uint256) external pure override returns (bool) {
+        revert PowerNonTransferable();
     }
 
     function bindReferral(address parent) external whenNotPaused {
@@ -746,12 +796,14 @@ abstract contract GpcMiningCore is Initializable, Ownable2StepUpgradeable, Pausa
         users[account].power += amount;
         totalPower += amount;
         _updateAncestorBranches(account, amount, true);
+        emit Transfer(address(0), account, amount);
     }
 
     function _decreasePower(address account, uint256 amount) internal {
         users[account].power -= amount;
         totalPower -= amount;
         _updateAncestorBranches(account, amount, false);
+        emit Transfer(account, address(0), amount);
     }
 
     function _updateAncestorBranches(address account, uint256 amount, bool increase) internal {

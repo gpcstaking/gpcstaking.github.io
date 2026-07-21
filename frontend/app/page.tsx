@@ -14,7 +14,7 @@ import {
 
 const viteEnv = import.meta.env as Record<string, string | undefined>;
 const nodeEnv = typeof process === "undefined" ? undefined : process.env;
-const MINING_ADDRESS = "0xB78A5ed9166c894C3ca3C7acD102378bab6da89D";
+const MINING_ADDRESS = "0xfA2121198a3ed0c0E2C316Fe3b8D36508AE00b03";
 const configuredMiningAddress = viteEnv.VITE_MINING_ADDRESS ?? nodeEnv?.NEXT_PUBLIC_MINING_ADDRESS;
 if (configuredMiningAddress && configuredMiningAddress.toLowerCase() !== MINING_ADDRESS.toLowerCase()) {
   throw new Error("Configured mining address does not match the audited BSC proxy");
@@ -81,7 +81,7 @@ const ORDER_AMOUNT = 1_000n * 10n ** 18n;
 const GPC_SWAP_AMOUNT = 700n * 10n ** 18n;
 const WBNB_SWAP_AMOUNT = 50n * 10n ** 18n;
 const BPS = 10_000n;
-const MINING_DEPLOYMENT_BLOCK = 110_916_907;
+const MINING_DEPLOYMENT_BLOCK = 111_241_087;
 const LOG_QUERY_BLOCK_SPAN = 50_000;
 const HISTORY_PROVIDER = new JsonRpcProvider("https://bsc.rpc.blxrbdn.com", 56, { staticNetwork: true, batchMaxCount: 1 });
 const USER_SWAP_SLIPPAGE_BPS = 30n; // 0.3% from the pre-signing router quote

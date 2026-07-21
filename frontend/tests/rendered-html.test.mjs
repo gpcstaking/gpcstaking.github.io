@@ -61,8 +61,8 @@ test("server-renders the GPC mining application shell", async () => {
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
 
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
-  assert.match(source, /const MINING_ADDRESS = "0xB78A5ed9166c894C3ca3C7acD102378bab6da89D"/);
-  assert.match(source, /const MINING_DEPLOYMENT_BLOCK = 110_916_907/);
+  assert.match(source, /const MINING_ADDRESS = "0xfA2121198a3ed0c0E2C316Fe3b8D36508AE00b03"/);
+  assert.match(source, /const MINING_DEPLOYMENT_BLOCK = 111_241_087/);
   assert.match(source, /const ORDER_AMOUNT = 1_000n \* 10n \*\* 18n/);
   assert.match(source, /const GPC_SWAP_AMOUNT = 700n \* 10n \*\* 18n/);
   assert.match(source, /const WBNB_SWAP_AMOUNT = 50n \* 10n \*\* 18n/);

@@ -26,9 +26,11 @@ The proxy separates permissions:
 - Oracle keeper: `0x3bEacEd5Ad0806F3536cdCcA82625309D5CF6F4A`
 - Oracle keeper service: Cloudflare Worker `gpc-oracle-keeper`, checking once per minute and writing only when the five-minute observation is due
 - Rolling Oracle upgrade: `2026-07-17 18:07:31 CST`
-- Mining proxy: `0xB78A5ed9166c894C3ca3C7acD102378bab6da89D`
-- Mining implementation: `0xC7b7fD828ae96B704ece953A14607F5Ba9fDd2A1`
-- Mining ProxyAdmin: `0x2202Cd78D61274c02F7BDB8A92Fb99489B24D97A`
+- Mining proxy / GPC STAKING (GS): `0xfA2121198a3ed0c0E2C316Fe3b8D36508AE00b03`
+- Mining implementation: `0xdAbd3979d354DC0374bEd068986FcAc4D8DBcc57`
+- Mining ProxyAdmin: `0xe15BEd123F57DC1d3d0C09Bc7DB31350Fc5CE69C`
+- Mining history proxy: `0x55f6B455789Ea69f32fd09015D850A97bf007C14`
+- Mining history ProxyAdmin: `0xDa4b7438f6e8F31e955fc69b218b54a5987A16b1`
 - DApp: `https://gpcstaking.github.io/`
 
 The Oracle, replacement mining, and history ProxyAdmin contracts are controlled by the designated Safe. The deployer remains the separate mining business owner for pause/unpause until a later explicit business-ownership handover.
@@ -68,8 +70,8 @@ The rolling oracle must receive a permissionless `update()` transaction once eve
 
 ## Security status
 
-Unit tests and TWAP manipulation bounds are present, but this code has not received an independent smart-contract audit. Do not fund or deploy it to mainnet until external review, fork-based integration testing, and operation-wallet key controls are complete.
+Unit tests, OpenZeppelin proxy validation, runtime-size checks, TWAP manipulation bounds, and direct mainnet configuration checks are present. The implementation is verified publicly, but the code has not received an independent third-party smart-contract audit; production funding should remain risk-limited until that review is complete.
 
 ## DApp
 
-The mobile wallet interface is under `frontend/`. Its audited BSC proxy address is pinned in source and CI rejects a mismatched deployment variable. The interface supports BSC wallet switching with PancakeSwap MEV Guard as the add-network RPC, mandatory first-entry referral binding, exact 1,000 USDT approval (including reducing legacy oversized allowances), pre-signing Pancake quotes with a 0.3% user floor and 60-second deadline, GPC staking, reward quotes, community statistics, paginated direct-referral reads, and withdrawals. A non-navigable assisted-operations view lets any wallet pay for an order credited to a bound beneficiary or trigger that beneficiary's available withdrawal. Each withdrawal sends 90% of gross GPC to the beneficiary, burns 5%, and sends 5% to operations; the caller cannot redirect or receive any portion. Personal-power and promotion-quota details are read directly from the separate on-chain history registry, which keeps the latest 30 packed records for each ledger and avoids archive-event RPC scans.
+The mobile wallet interface is under `frontend/`. Its audited BSC proxy address is pinned in source and CI rejects a mismatched deployment variable. The mining proxy also exposes personal power as the non-transferable ERC20-compatible token `GPC STAKING` (`GS`): each order mints GS equal to the credited power, while withdrawals and inactivity expiry burn the consumed power. The interface supports BSC wallet switching with PancakeSwap MEV Guard as the add-network RPC, mandatory first-entry referral binding, exact 1,000 USDT approval (including reducing legacy oversized allowances), pre-signing Pancake quotes with a 0.3% user floor and 60-second deadline, GPC staking, reward quotes, community statistics, paginated direct-referral reads, and withdrawals. A non-navigable assisted-operations view lets any wallet pay for an order credited to a bound beneficiary or trigger that beneficiary's available withdrawal. Each withdrawal sends 90% of gross GPC to the beneficiary, burns 5%, and sends 5% to operations; the caller cannot redirect or receive any portion. Personal-power and promotion-quota details are read directly from the separate on-chain history registry, which keeps the latest 30 packed records for each ledger and avoids archive-event RPC scans.
