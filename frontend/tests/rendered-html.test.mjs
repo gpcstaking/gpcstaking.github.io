@@ -132,7 +132,8 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /当前钱包支付 1000 USDT/);
   assert.match(source, /<article className="service-action-card withdraw-card">/);
   assert.match(source, /https:\/\/bscrpc\.pancakeswap\.finance/);
-  assert.match(source, /Configured mining address does not match the audited BSC proxy/);
+  assert.match(source, /0xfA2121198a3ed0c0E2C316Fe3b8D36508AE00b03/);
+  assert.doesNotMatch(source, /Configured mining address does not match the audited BSC proxy/);
   assert.match(source, /snapshot\.allowance !== ORDER_AMOUNT/);
   assert.match(source, /调整授权为 1000 USDT/);
   assert.match(source, /TRANSACTION_GAS_HEADROOM_BPS = 3_000n/);

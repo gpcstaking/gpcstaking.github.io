@@ -12,13 +12,7 @@ import {
   zeroPadValue,
 } from "ethers";
 
-const viteEnv = import.meta.env as Record<string, string | undefined>;
-const nodeEnv = typeof process === "undefined" ? undefined : process.env;
 const MINING_ADDRESS = "0xfA2121198a3ed0c0E2C316Fe3b8D36508AE00b03";
-const configuredMiningAddress = viteEnv.VITE_MINING_ADDRESS ?? nodeEnv?.NEXT_PUBLIC_MINING_ADDRESS;
-if (configuredMiningAddress && configuredMiningAddress.toLowerCase() !== MINING_ADDRESS.toLowerCase()) {
-  throw new Error("Configured mining address does not match the audited BSC proxy");
-}
 const USDT_ADDRESS = "0x55d398326f99059fF775485246999027B3197955";
 const GPC_ADDRESS = "0xD3c304697f63B279cd314F92c19cDBE5E5b1631A";
 const WBNB_ADDRESS = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c";
