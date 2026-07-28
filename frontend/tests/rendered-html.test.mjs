@@ -26,8 +26,9 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(html, /GPC质押挖矿/);
   assert.match(html, /我的团队/);
   assert.match(html, /直推下级/);
-  assert.match(html, /社区收益全额烧伤规则/);
-  assert.match(html, /社区收益为 0 并全部烧伤/);
+  assert.match(html, /社区收益按有效算力计算/);
+  assert.match(html, /实际有效算力日收益的 10%/);
+  assert.match(html, /收益加速/);
   assert.match(html, /今日社区已收益/);
   assert.match(html, /今日尚未领取社区收益/);
   assert.match(html, /今日已领取/);
@@ -78,6 +79,8 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /communityClaimedToday\(address\)/);
   assert.match(source, /直属节点数/);
   assert.match(source, /团队节点总数/);
+  assert.match(source, /formatRewardMultiplier\(snapshot\.staticReward, snapshot\.communityReward, language\)/);
+  assert.doesNotMatch(source, /communityRewardBurned|社区收益为 0 并全部烧伤/);
   assert.match(source, /个人算力明细/);
   assert.match(source, /推广额度明细/);
   assert.match(source, /增减记录/);

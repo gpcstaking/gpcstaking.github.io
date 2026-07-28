@@ -465,7 +465,7 @@ describe('GpcMiningCore', function () {
     await upgrades.validateImplementation(History, { kind: 'transparent' });
   });
 
-  it('burns the entire community reward when effective small-area power is below the small area', async function () {
+  it('rewards the actual effective small-area power when it is below the small area', async function () {
     const { signers, operation, alice, oracle, mining, bindAndOrder } = await loadFixture(deployFixture);
 
     await bindAndOrder(alice, operation);
@@ -483,8 +483,8 @@ describe('GpcMiningCore', function () {
     const quote = await mining.quoteRewards(alice.address);
     expect(quote.poolLimitedMode).to.equal(false);
     expect(quote.staticRewardUsdt).to.equal(e('5'));
-    expect(quote.communityRewardUsdt).to.equal(0);
-    expect(quote.totalRewardUsdt).to.equal(e('5'));
+    expect(quote.communityRewardUsdt).to.equal(e('5'));
+    expect(quote.totalRewardUsdt).to.equal(e('10'));
   });
 
   it('pays the community reward when effective small-area power covers the full small area', async function () {

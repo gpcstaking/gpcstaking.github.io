@@ -730,11 +730,9 @@ abstract contract GpcMiningCore is
 
         (, , quote.smallAreaPower, quote.effectiveSmallAreaPower) = communityPower(account);
         quote.poolLimitedMode = quote.poolValueUsdt * 20 < totalPower * 5;
-        // Community rewards are all-or-nothing. If the 10x personal-power cap cannot
-        // cover the complete small area, the entire community reward is burned.
-        uint256 rewardedSmallAreaPower = quote.effectiveSmallAreaPower >= quote.smallAreaPower
-            ? quote.effectiveSmallAreaPower
-            : 0;
+        // Community rewards always use the actual effective small-area power. The
+        // 10x personal-power cap limits the rewarded power without burning it all.
+        uint256 rewardedSmallAreaPower = quote.effectiveSmallAreaPower;
 
         if (quote.poolLimitedMode) {
             quote.staticRewardUsdt = Math.mulDiv(quote.poolValueUsdt, personalPower, totalPower) / 100;
