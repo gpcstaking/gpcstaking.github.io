@@ -16,7 +16,9 @@ module.exports = {
   },
   networks: {
     hardhat: {
-      accounts: { count: 40 }
+      accounts: { count: 40 },
+      // Keep time-based economics tests deterministic before the promotion cutoff.
+      initialDate: '2026-07-29T00:00:00.000Z'
     },
     bscTestnet: {
       url: process.env.BSC_TESTNET_RPC_URL || 'https://data-seed-prebsc-1-s1.binance.org:8545/',

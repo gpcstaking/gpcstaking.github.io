@@ -109,11 +109,13 @@ a { color: inherit; text-decoration: none; }
 .allocation > div:first-child { border-radius: 999px 0 0 999px; }
 .allocation > div:last-child { border-radius: 0 999px 999px 0; }
 .direct { background: var(--green); }
+.operations { background: var(--orange); }
 .stake-pool { background: var(--lime); }
 .lp { background: var(--purple); }
 .fund-legend { display: flex; justify-content: space-between; padding: 11px 0 14px; color: #77827d; font-size: 10px; }
 .fund-legend span { display: flex; align-items: center; gap: 4px; }
 .fund-legend i { width: 5px; height: 5px; border-radius: 50%; }
+.reward-schedule-note { margin: -5px 0 12px; color: #77827d; font-size: 10px; text-align: center; }
 .wallet-row { display: flex; justify-content: space-between; padding: 13px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
 .wallet-row strong { color: var(--text); }
 .main-action { width: 100%; height: 48px; border: 0; border-radius: 12px; background: var(--lime); color: #0b100d; font-size: 15px; font-weight: 850; }

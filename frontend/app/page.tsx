@@ -37,6 +37,7 @@ const MINING_ABI = [
   "function oracle() view returns (address)",
   "function bindReferral(address parent)",
   "function router() view returns (address)",
+  "function USDT_TO_GPC() view returns (uint256)",
   "function placeOrder(uint256 deadline,uint256 userMinGpcOut,uint256 userMinWbnbOut,uint256 userMinLpGpc,uint256 userMinLpWbnb)",
   "function placeOrderFor(address beneficiary,uint256 deadline,uint256 userMinGpcOut,uint256 userMinWbnbOut,uint256 userMinLpGpc,uint256 userMinLpWbnb)",
   "function withdraw()",
@@ -72,7 +73,7 @@ const ROUTER_ABI = [
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const ORDER_AMOUNT = 1_000n * 10n ** 18n;
-const GPC_SWAP_AMOUNT = 700n * 10n ** 18n;
+const DIRECT_REWARD_PROMOTION_END = 1_790_784_000;
 const WBNB_SWAP_AMOUNT = 50n * 10n ** 18n;
 const BPS = 10_000n;
 const MINING_DEPLOYMENT_BLOCK = 111_241_087;
@@ -425,6 +426,7 @@ export default function Home() {
   const hasEnoughUsdt = snapshot.usdtBalance >= ORDER_AMOUNT;
   const canWithdraw = snapshot.nextWithdrawAt !== 0 && currentTime >= snapshot.nextWithdrawAt;
   const bindingRequired = Boolean(account) && !isBound;
+  const promotionalDirectRewardActive = currentTime < DIRECT_REWARD_PROMOTION_END;
 
   useEffect(() => {
     const restoreServiceMode = window.setTimeout(() => {
@@ -790,16 +792,17 @@ export default function Home() {
   async function protectedOrderArgs(mining: Contract) {
     if (!provider) throw new Error(text("请先连接钱包", "Connect your wallet first"));
     const routerAddress = await mining.router();
+    const gpcSwapAmount = await mining.USDT_TO_GPC() as bigint;
     const pancakeRouter = new Contract(routerAddress, ROUTER_ABI, provider);
     const [gpcAmounts, wbnbAmounts] = await Promise.all([
-      pancakeRouter.getAmountsOut(GPC_SWAP_AMOUNT, [USDT_ADDRESS, WBNB_ADDRESS, GPC_ADDRESS]),
+      pancakeRouter.getAmountsOut(gpcSwapAmount, [USDT_ADDRESS, WBNB_ADDRESS, GPC_ADDRESS]),
       pancakeRouter.getAmountsOut(WBNB_SWAP_AMOUNT, [USDT_ADDRESS, WBNB_ADDRESS]),
     ]);
     const quotedGpc = gpcAmounts[gpcAmounts.length - 1] as bigint;
     const quotedWbnb = wbnbAmounts[wbnbAmounts.length - 1] as bigint;
     const minGpcOut = quotedGpc * (BPS - USER_SWAP_SLIPPAGE_BPS) / BPS;
     const minWbnbOut = quotedWbnb * (BPS - USER_SWAP_SLIPPAGE_BPS) / BPS;
-    const minLpGpc = (quotedGpc / 14n) * (BPS - LP_SLIPPAGE_BPS) / BPS;
+    const minLpGpc = (quotedGpc * WBNB_SWAP_AMOUNT / gpcSwapAmount) * (BPS - LP_SLIPPAGE_BPS) / BPS;
     const minLpWbnb = quotedWbnb * (BPS - LP_SLIPPAGE_BPS) / BPS;
     const deadline = Math.floor(Date.now() / 1000) + ORDER_DEADLINE_SECONDS;
     return [deadline, minGpcOut, minWbnbOut, minLpGpc, minLpWbnb] as const;
@@ -999,11 +1002,13 @@ export default function Home() {
             <div className="order-value"><span>{text("质押金额", "Stake amount")}</span><div><strong>1000</strong><b>USDT</b></div></div>
             <div className="order-receive"><span>{text("预计获得", "You receive")}</span><strong>{text("+2000 算力", "+2,000 Power")}</strong><strong>{text("+1000 U 推广额度", "+1,000 U Referral quota")}</strong></div>
             <div className="allocation" aria-label={text("质押资金分配", "Stake allocation")}>
+              <div style={{ width: "5%" }} className="operations" />
+              <div style={{ width: promotionalDirectRewardActive ? "20%" : "10%" }} className="direct" />
               <div style={{ width: "10%" }} className="lp" />
-              <div style={{ width: "20%" }} className="direct" />
-              <div style={{ width: "70%" }} className="stake-pool" />
+              <div style={{ width: promotionalDirectRewardActive ? "65%" : "75%" }} className="stake-pool" />
             </div>
-            <div className="fund-legend"><span><i className="lp" />10% {text("筑 LP", "Build LP")}</span><span><i className="direct" />20% {text("直推", "Referral")}</span><span><i className="stake-pool" />70% {text("质押矿池", "Staking pool")}</span></div>
+            <div className="fund-legend"><span><i className="operations" />5% {text("运营", "Operations")}</span><span><i className="direct" />{promotionalDirectRewardActive ? "20%" : "10%"} {text("直推", "Referral")}</span><span><i className="lp" />10% {text("筑 LP", "Build LP")}</span><span><i className="stake-pool" />{promotionalDirectRewardActive ? "65%" : "75%"} {text("订单矿池", "Order pool")}</span></div>
+            <div className="reward-schedule-note">{promotionalDirectRewardActive ? text("当前分账比例 · 2026年9月30日24:00结束", "Current allocation · Ends Sep 30, 2026 at 24:00 (CST)") : text("10月1日起直推 10% · 订单矿池 75%", "From Oct 1: 10% referral · 75% order pool")}</div>
             <div className="wallet-row"><span>{text("USDT 余额", "USDT balance")}</span><strong>{compact(snapshot.usdtBalance, language)} USDT</strong></div>
             {!account ? (
               <button className="main-action" onClick={connectWallet} disabled={busy}>{text("连接钱包", "Connect wallet")}</button>

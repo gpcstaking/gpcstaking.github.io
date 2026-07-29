@@ -32,9 +32,13 @@ abstract contract GpcMiningCore is
     uint256 public constant ORDER_USDT = 1_000 ether;
     uint256 public constant POWER_PER_ORDER = 2_000 ether;
     uint256 public constant PROMOTION_QUOTA_PER_ORDER = 1_000 ether;
-    uint256 public constant DIRECT_REWARD = 200 ether;
+    uint256 public constant PROMOTIONAL_DIRECT_REWARD = 200 ether;
+    uint256 public constant STANDARD_DIRECT_REWARD = 100 ether;
+    // 2026-10-01 00:00:00 Asia/Shanghai (2026-09-30 24:00).
+    uint256 public constant DIRECT_REWARD_PROMOTION_END = 1_790_784_000;
     uint256 public constant OPERATION_SHARE = 50 ether;
-    uint256 public constant USDT_TO_GPC = 700 ether;
+    uint256 public constant PROMOTIONAL_USDT_TO_GPC = 700 ether;
+    uint256 public constant STANDARD_USDT_TO_GPC = 800 ether;
     uint256 public constant USDT_TO_WBNB = 50 ether;
 
     uint256 public constant BPS = 10_000;
@@ -368,24 +372,29 @@ abstract contract GpcMiningCore is
             revert UnsupportedUsdtTransfer();
         }
 
+        uint256 currentDirectReward = DIRECT_REWARD();
+        uint256 currentUsdtToGpc = USDT_TO_GPC();
         address rewardRecipient = operationWallet;
         if (!isRootOrder) {
             UserInfo storage parentInfo = users[parent];
-            if (parentInfo.promotionQuota >= DIRECT_REWARD) {
-                parentInfo.promotionQuota -= DIRECT_REWARD;
-                _appendQuotaHistory(parent, DIRECT_REWARD, QUOTA_HISTORY_REFERRAL);
+            if (parentInfo.promotionQuota >= currentDirectReward) {
+                parentInfo.promotionQuota -= currentDirectReward;
+                _appendQuotaHistory(parent, currentDirectReward, QUOTA_HISTORY_REFERRAL);
                 rewardRecipient = parent;
             }
         }
-        usdt.safeTransfer(rewardRecipient, DIRECT_REWARD);
+        usdt.safeTransfer(rewardRecipient, currentDirectReward);
         usdt.safeTransfer(operationWallet, OPERATION_SHARE);
 
         (uint256 gpcBought, uint256 wbnbBought) = _executeProtectedSwaps(
+            currentUsdtToGpc,
             deadline,
             userMinGpcOut,
             userMinWbnbOut
         );
-        uint256 desiredLpGpc = gpcBought / 14; // 5/70 of bought GPC
+        // Keep exactly 5% of order value in GPC for LP. After the promotion,
+        // the extra 10% GPC purchase is injected only into the order mining pool.
+        uint256 desiredLpGpc = Math.mulDiv(gpcBought, USDT_TO_WBNB, currentUsdtToGpc);
         uint256 poolGpc = gpcBought - desiredLpGpc;
         uint256 minLpGpc = Math.max(
             userMinLpGpc,
@@ -441,6 +450,34 @@ abstract contract GpcMiningCore is
 
     function withdraw() external nonReentrant whenNotPaused {
         _withdraw(msg.sender);
+    }
+
+    /**
+     * @notice Returns the direct-referral reward active at the current block time.
+     * @dev Preserves the historical DIRECT_REWARD() selector for integrations.
+     */
+    function DIRECT_REWARD() public view returns (uint256) {
+        return directRewardAt(block.timestamp);
+    }
+
+    function directRewardAt(uint256 timestamp) public pure returns (uint256) {
+        return timestamp < DIRECT_REWARD_PROMOTION_END
+            ? PROMOTIONAL_DIRECT_REWARD
+            : STANDARD_DIRECT_REWARD;
+    }
+
+    /**
+     * @notice Returns the USDT amount currently swapped into GPC per order.
+     * @dev Preserves the historical USDT_TO_GPC() selector for integrations.
+     */
+    function USDT_TO_GPC() public view returns (uint256) {
+        return usdtToGpcAt(block.timestamp);
+    }
+
+    function usdtToGpcAt(uint256 timestamp) public pure returns (uint256) {
+        return timestamp < DIRECT_REWARD_PROMOTION_END
+            ? PROMOTIONAL_USDT_TO_GPC
+            : STANDARD_USDT_TO_GPC;
     }
 
     /**
@@ -629,6 +666,7 @@ abstract contract GpcMiningCore is
     }
 
     function _executeProtectedSwaps(
+        uint256 usdtToGpc,
         uint256 deadline,
         uint256 userMinGpcOut,
         uint256 userMinWbnbOut
@@ -638,7 +676,7 @@ abstract contract GpcMiningCore is
         if (gpcPrice == 0 || bnbPrice == 0) revert OraclePriceInvalid();
         _validateSpotAgainstTwap(gpcPrice, bnbPrice);
 
-        uint256 minGpc = Math.mulDiv(USDT_TO_GPC, 1 ether, gpcPrice);
+        uint256 minGpc = Math.mulDiv(usdtToGpc, 1 ether, gpcPrice);
         minGpc = Math.mulDiv(minGpc, BPS - SWAP_SLIPPAGE_BPS, BPS);
         minGpc = Math.max(minGpc, userMinGpcOut);
         uint256 minWbnb = Math.mulDiv(USDT_TO_WBNB, 1 ether, bnbPrice);
@@ -652,7 +690,7 @@ abstract contract GpcMiningCore is
 
         uint256 beforeGpc = gpc.balanceOf(address(this));
         router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
-            USDT_TO_GPC,
+            usdtToGpc,
             minGpc,
             gpcPath,
             address(this),

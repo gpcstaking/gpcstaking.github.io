@@ -107,6 +107,12 @@ describe('GpcMiningCore', function () {
     expect(await mining.ORDER_USDT()).to.equal(e('1000'));
     expect(await mining.POWER_PER_ORDER()).to.equal(e('2000'));
     expect(await mining.PROMOTION_QUOTA_PER_ORDER()).to.equal(e('1000'));
+    expect(await mining.PROMOTIONAL_DIRECT_REWARD()).to.equal(e('200'));
+    expect(await mining.STANDARD_DIRECT_REWARD()).to.equal(e('100'));
+    expect(await mining.DIRECT_REWARD()).to.equal(e('200'));
+    expect(await mining.PROMOTIONAL_USDT_TO_GPC()).to.equal(e('700'));
+    expect(await mining.STANDARD_USDT_TO_GPC()).to.equal(e('800'));
+    expect(await mining.USDT_TO_GPC()).to.equal(e('700'));
     expect(aliceInfo.power).to.equal(e('2000'));
     expect(aliceInfo.totalPowerPurchased).to.equal(e('2000'));
     expect(aliceInfo.promotionQuota).to.equal(e('1000'));
@@ -119,6 +125,26 @@ describe('GpcMiningCore', function () {
     expect(await usdt.balanceOf(alice.address)).to.equal(e('19200')); // 20,000 - 1,000 + 200
     expect((await mining.users(alice.address)).promotionQuota).to.equal(e('800'));
     expect(await mining.miningPoolGpc()).to.equal(e('13000'));
+  });
+
+  it('reduces the direct reward to 10% after 2026-09-30 24:00 CST and sends the difference to the order pool', async function () {
+    const { operation, alice, bob, usdt, mining, bindAndOrder } = await loadFixture(deployFixture);
+    const promotionEnd = 1_790_784_000n;
+
+    expect(await mining.DIRECT_REWARD_PROMOTION_END()).to.equal(promotionEnd);
+    expect(await mining.directRewardAt(promotionEnd - 1n)).to.equal(e('200'));
+    expect(await mining.directRewardAt(promotionEnd)).to.equal(e('100'));
+    expect(await mining.usdtToGpcAt(promotionEnd - 1n)).to.equal(e('700'));
+    expect(await mining.usdtToGpcAt(promotionEnd)).to.equal(e('800'));
+
+    await bindAndOrder(alice, operation);
+    await time.increaseTo(promotionEnd);
+    await bindAndOrder(bob, alice);
+
+    expect(await usdt.balanceOf(alice.address)).to.equal(e('19100')); // 20,000 - 1,000 + 100
+    expect((await mining.users(alice.address)).promotionQuota).to.equal(e('900'));
+    expect(await usdt.balanceOf(operation.address)).to.equal(e('300')); // 250 root + 50 post-promotion
+    expect(await mining.miningPoolGpc()).to.equal(e('14000')); // 6,500 + 7,500 post-promotion
   });
 
   it('exposes mining power as a non-transferable ERC20-compatible balance', async function () {
