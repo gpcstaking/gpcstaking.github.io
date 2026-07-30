@@ -48,7 +48,7 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(html, /进入游戏/);
   assert.match(html, /href="http:\/\/cq\.opengpc\.com"/);
   assert.doesNotMatch(html, /我的账户|查看 GPC 代币合约/);
-  assert.match(html, /5%.*运营/);
+  assert.doesNotMatch(html, /5% 运营/);
   assert.match(html, /10%.*筑 LP/);
   assert.match(html, /20%.*直推/);
   assert.match(html, /2026年9月30日24:00结束/);

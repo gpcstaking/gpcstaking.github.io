@@ -1007,7 +1007,7 @@ export default function Home() {
               <div style={{ width: "10%" }} className="lp" />
               <div style={{ width: promotionalDirectRewardActive ? "65%" : "75%" }} className="stake-pool" />
             </div>
-            <div className="fund-legend"><span><i className="operations" />5% {text("运营", "Operations")}</span><span><i className="direct" />{promotionalDirectRewardActive ? "20%" : "10%"} {text("直推", "Referral")}</span><span><i className="lp" />10% {text("筑 LP", "Build LP")}</span><span><i className="stake-pool" />{promotionalDirectRewardActive ? "65%" : "75%"} {text("订单矿池", "Order pool")}</span></div>
+            <div className="fund-legend"><span><i className="direct" />{promotionalDirectRewardActive ? "20%" : "10%"} {text("直推", "Referral")}</span><span><i className="lp" />10% {text("筑 LP", "Build LP")}</span><span><i className="stake-pool" />{promotionalDirectRewardActive ? "65%" : "75%"} {text("订单矿池", "Order pool")}</span></div>
             <div className="reward-schedule-note">{promotionalDirectRewardActive ? text("当前分账比例 · 2026年9月30日24:00结束", "Current allocation · Ends Sep 30, 2026 at 24:00 (CST)") : text("10月1日起直推 10% · 订单矿池 75%", "From Oct 1: 10% referral · 75% order pool")}</div>
             <div className="wallet-row"><span>{text("USDT 余额", "USDT balance")}</span><strong>{compact(snapshot.usdtBalance, language)} USDT</strong></div>
             {!account ? (
