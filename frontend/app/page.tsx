@@ -1002,13 +1002,12 @@ export default function Home() {
             <div className="order-value"><span>{text("质押金额", "Stake amount")}</span><div><strong>1000</strong><b>USDT</b></div></div>
             <div className="order-receive"><span>{text("预计获得", "You receive")}</span><strong>{text("+2000 算力", "+2,000 Power")}</strong><strong>{text("+1000 U 推广额度", "+1,000 U Referral quota")}</strong></div>
             <div className="allocation" aria-label={text("质押资金分配", "Stake allocation")}>
-              <div style={{ width: "5%" }} className="operations" />
               <div style={{ width: promotionalDirectRewardActive ? "20%" : "10%" }} className="direct" />
               <div style={{ width: "10%" }} className="lp" />
-              <div style={{ width: promotionalDirectRewardActive ? "65%" : "75%" }} className="stake-pool" />
+              <div style={{ width: promotionalDirectRewardActive ? "70%" : "80%" }} className="stake-pool" />
             </div>
-            <div className="fund-legend"><span><i className="direct" />{promotionalDirectRewardActive ? "20%" : "10%"} {text("直推", "Referral")}</span><span><i className="lp" />10% {text("筑 LP", "Build LP")}</span><span><i className="stake-pool" />{promotionalDirectRewardActive ? "65%" : "75%"} {text("订单矿池", "Order pool")}</span></div>
-            <div className="reward-schedule-note">{promotionalDirectRewardActive ? text("当前分账比例 · 2026年9月30日24:00结束", "Current allocation · Ends Sep 30, 2026 at 24:00 (CST)") : text("10月1日起直推 10% · 订单矿池 75%", "From Oct 1: 10% referral · 75% order pool")}</div>
+            <div className="fund-legend"><span><i className="direct" />{promotionalDirectRewardActive ? "20%" : "10%"} {text("直推", "Referral")}</span><span><i className="lp" />10% {text("筑 LP", "Build LP")}</span><span><i className="stake-pool" />{promotionalDirectRewardActive ? "70%" : "80%"} {text("订单矿池", "Order pool")}</span></div>
+            <div className="reward-schedule-note">{text("2026年10月1日起推广期结束，直推变更为10%，订单矿池变更为80%", "The promotion ends Oct 1, 2026: referral changes to 10% and the order pool to 80%")}</div>
             <div className="wallet-row"><span>{text("USDT 余额", "USDT balance")}</span><strong>{compact(snapshot.usdtBalance, language)} USDT</strong></div>
             {!account ? (
               <button className="main-action" onClick={connectWallet} disabled={busy}>{text("连接钱包", "Connect wallet")}</button>

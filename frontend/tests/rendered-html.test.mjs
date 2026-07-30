@@ -51,8 +51,8 @@ test("server-renders the GPC mining application shell", async () => {
   assert.doesNotMatch(html, /5% 运营/);
   assert.match(html, /10%.*筑 LP/);
   assert.match(html, /20%.*直推/);
-  assert.match(html, /2026年9月30日24:00结束/);
-  assert.match(html, /65%.*订单矿池/);
+  assert.match(html, /70%.*订单矿池/);
+  assert.match(html, /2026年10月1日起推广期结束，直推变更为10%，订单矿池变更为80%/);
   assert.match(html, /每次固定质押 1000 USDT/);
   assert.match(html, /\+2000 算力/);
   assert.match(html, /\+1000 U 推广额度/);
@@ -69,7 +69,7 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /const ORDER_AMOUNT = 1_000n \* 10n \*\* 18n/);
   assert.match(source, /const DIRECT_REWARD_PROMOTION_END = 1_790_784_000/);
   assert.match(source, /promotionalDirectRewardActive \? "20%" : "10%"/);
-  assert.match(source, /10月1日起直推 10% · 订单矿池 75%/);
+  assert.match(source, /promotionalDirectRewardActive \? "70%" : "80%"/);
   assert.match(source, /function USDT_TO_GPC\(\) view returns \(uint256\)/);
   assert.match(source, /quotedGpc \* WBNB_SWAP_AMOUNT \/ gpcSwapAmount/);
   assert.match(source, /const WBNB_SWAP_AMOUNT = 50n \* 10n \*\* 18n/);
