@@ -43,6 +43,7 @@ const MINING_ABI = [
   "function withdraw()",
   "function withdrawFor(address beneficiary)",
   "function reinvest()",
+  "function reinvestFor(address beneficiary)",
   "event Withdrawn(address indexed user,uint256 staticRewardUsdt,uint256 communityRewardUsdt,uint256 powerBurned,uint256 grossGpc,uint256 feeGpc,uint256 netGpc,uint256 gpcPrice)",
   "event Reinvested(address indexed user,uint256 staticRewardUsdt,uint256 communityRewardUsdt,uint256 powerBurned,uint256 grossGpc,uint256 operationGpc,uint256 retainedGpc,uint256 powerAdded,uint256 gpcPrice)",
   "error RootCannotOrder()",
@@ -853,6 +854,18 @@ export default function Home() {
     }, serviceBeneficiary);
   }
 
+  async function serviceReinvest() {
+    if (!isAddress(serviceBeneficiary)) {
+      setStatus({ zh: "请输入有效的目标钱包地址", en: "Enter a valid beneficiary wallet address" });
+      return false;
+    }
+    return runTransaction({ zh: "代复投", en: "Assisted reinvest" }, async signer => {
+      const mining = new Contract(MINING_ADDRESS, MINING_ABI, signer);
+      const estimatedGas = await mining.reinvestFor.estimateGas(serviceBeneficiary);
+      return mining.reinvestFor(serviceBeneficiary, { gasLimit: gasLimitWithHeadroom(estimatedGas) });
+    }, serviceBeneficiary);
+  }
+
   function withdraw() {
     return runTransaction({ zh: "提现", en: "Claim" }, async signer => {
       const mining = new Contract(MINING_ADDRESS, MINING_ABI, signer);
@@ -906,7 +919,7 @@ export default function Home() {
             <div className="service-heading">
               <span>GPC OPERATIONS</span>
               <h1 id="service-title">{text("代操作工具", "Assisted Operations")}</h1>
-              <p>{text("该入口不会出现在普通导航中。任何钱包均可为已绑定用户代报单或代提现。", "This page is not linked from public navigation. Any wallet can place an assisted stake or claim for an already-bound beneficiary.")}</p>
+              <p>{text("该入口不会出现在普通导航中。任何钱包均可为已绑定用户代报单、代提现或代复投。", "This page is not linked from public navigation. Any wallet can stake, claim or reinvest for an already-bound beneficiary.")}</p>
             </div>
 
             {!account ? (
@@ -922,7 +935,7 @@ export default function Home() {
                   <div className="service-operator-row"><span>{text("当前支付钱包", "Current payer")}</span><strong>{shortAddress(account)}</strong></div>
                   <label htmlFor="service-beneficiary">{text("目标用户钱包地址", "Beneficiary wallet address")}</label>
                   <input id="service-beneficiary" value={serviceBeneficiary} onChange={event => setServiceBeneficiary(event.target.value.trim())} placeholder="0x..." autoComplete="off" autoCapitalize="none" inputMode="text" spellCheck={false} />
-                  <small><DappIcon name="shield" size={13} />{text("算力和额度记入目标用户，代提现收益也只到目标钱包", "Power and quota are credited to the beneficiary; assisted claim proceeds also go only to it")}</small>
+                  <small><DappIcon name="shield" size={13} />{text("算力和额度记入目标用户，代提现和代复投权益也只归目标用户", "Power, quota, assisted claim proceeds and reinvested power belong only to the beneficiary")}</small>
                 </article>
 
                 <article className="service-action-card">
@@ -942,6 +955,11 @@ export default function Home() {
                 <article className="service-action-card withdraw-card">
                   <div className="service-action-title"><span className="heading-icon"><DappIcon name="withdraw" size={17} /></span><div><strong>{text("代提现", "Assisted claim")}</strong><small>{text("90% 到目标钱包，5% 销毁，5% 到运营钱包", "90% goes to the beneficiary, 5% is burned, and 5% goes to operations")}</small></div></div>
                   <button className="service-action-button secondary" onClick={serviceWithdraw} disabled={busy || !isAddress(serviceBeneficiary)}>{text("确认代提现", "Confirm assisted claim")}</button>
+                </article>
+
+                <article className="service-action-card reinvest-card">
+                  <div className="service-action-title"><span className="heading-icon"><DappIcon name="refresh" size={17} /></span><div><strong>{text("代复投", "Assisted reinvest")}</strong><small>{text("10% GPC 到运营钱包，90% 留在订单矿池并按2.5倍给目标用户增加算力", "10% GPC goes to operations; 90% stays in the order pool and adds 2.5x power to the beneficiary")}</small></div></div>
+                  <button className="service-action-button reinvest-secondary" onClick={serviceReinvest} disabled={busy || !isAddress(serviceBeneficiary)}>{text("确认代复投", "Confirm assisted reinvest")}</button>
                 </article>
               </>
             )}

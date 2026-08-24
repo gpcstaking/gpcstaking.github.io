@@ -259,6 +259,9 @@ a { color: inherit; text-decoration: none; }
 .service-action-button:disabled { opacity: .42; }
 .withdraw-card { border-color: rgba(154,136,255,.14); }
 .withdraw-card .heading-icon { background: rgba(154,136,255,.1); color: var(--purple); }
+.reinvest-card { border-color: rgba(201,255,82,.16); }
+.reinvest-card .heading-icon { background: rgba(201,255,82,.1); color: var(--lime); }
+.service-action-button.reinvest-secondary { border: 1px solid rgba(201,255,82,.4); background: rgba(201,255,82,.08); color: var(--lime); }
 
 .bottom-nav { position: fixed; z-index: 20; left: 50%; bottom: 0; width: min(100%, 430px); height: 76px; display: grid; grid-template-columns: repeat(4, 1fr); padding: 9px 10px max(9px, env(safe-area-inset-bottom)); transform: translateX(-50%); border-top: 1px solid rgba(255,255,255,.08); background: rgba(10,14,12,.93); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
 .bottom-nav button { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 0; background: transparent; color: #66716b; }

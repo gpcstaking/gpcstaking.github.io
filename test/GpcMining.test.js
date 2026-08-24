@@ -258,7 +258,7 @@ describe('GpcMiningCore', function () {
   });
 
   it('reinvests the retained 90% GPC at 2.5x without order or referral side effects', async function () {
-    const { operation, alice, gpc, mining, history, bindAndOrder } = await loadFixture(deployFixture);
+    const { operation, alice, bob, gpc, mining, history, bindAndOrder } = await loadFixture(deployFixture);
     await bindAndOrder(alice, operation);
     await time.increase(24 * 60 * 60);
 
@@ -305,6 +305,12 @@ describe('GpcMiningCore', function () {
     expect(quotaHistoryTotal).to.equal(1);
     await expect(mining.connect(alice).reinvest())
       .to.be.revertedWithCustomError(mining, 'WithdrawCooldownActive');
+
+    await time.increase(24 * 60 * 60);
+    await expect(mining.connect(bob).reinvestFor(alice.address))
+      .to.emit(mining, 'Reinvested');
+    expect((await mining.users(bob.address)).power).to.equal(0);
+    expect(await gpc.balanceOf(bob.address)).to.equal(0);
   });
 
   it('uses mining-pool GPC to add 0.1 BNB when a withdrawal finds the Oracle keeper below 0.1 BNB', async function () {

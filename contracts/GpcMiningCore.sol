@@ -476,6 +476,14 @@ abstract contract GpcMiningCore is
     }
 
     /**
+     * @notice Lets any wallet trigger an available 2.5x reinvestment for a beneficiary.
+     * @dev All resulting power is credited to the beneficiary; the caller receives nothing.
+     */
+    function reinvestFor(address beneficiary) external nonReentrant whenNotPaused {
+        _reinvest(beneficiary);
+    }
+
+    /**
      * @notice Returns the direct-referral reward active at the current block time.
      * @dev Preserves the historical DIRECT_REWARD() selector for integrations.
      */
