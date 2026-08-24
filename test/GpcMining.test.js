@@ -257,6 +257,56 @@ describe('GpcMiningCore', function () {
       .to.be.revertedWithCustomError(mining, 'WithdrawCooldownActive');
   });
 
+  it('reinvests the retained 90% GPC at 2.5x without order or referral side effects', async function () {
+    const { operation, alice, gpc, mining, history, bindAndOrder } = await loadFixture(deployFixture);
+    await bindAndOrder(alice, operation);
+    await time.increase(24 * 60 * 60);
+
+    const quote = await mining.quoteRewards(alice.address);
+    const operationGpc = quote.grossGpc / 10n;
+    const retainedGpc = quote.grossGpc - operationGpc;
+    const retainedValueUsdt = retainedGpc * quote.gpcPrice / e('1');
+    const powerAdded = retainedValueUsdt * 25_000n / 10_000n;
+    const poolBefore = await mining.miningPoolGpc();
+    const operationBefore = await gpc.balanceOf(operation.address);
+    const userBefore = await mining.users(alice.address);
+
+    expect(await mining.REINVEST_MULTIPLIER_BPS()).to.equal(25_000);
+    await expect(mining.connect(alice).reinvest())
+      .to.emit(mining, 'Reinvested')
+      .withArgs(
+        alice.address,
+        quote.staticRewardUsdt,
+        quote.communityRewardUsdt,
+        quote.totalRewardUsdt,
+        quote.grossGpc,
+        operationGpc,
+        retainedGpc,
+        powerAdded,
+        quote.gpcPrice
+      );
+
+    const userAfter = await mining.users(alice.address);
+    expect(userAfter.power).to.equal(userBefore.power - quote.totalRewardUsdt + powerAdded);
+    expect(userAfter.totalPowerPurchased).to.equal(userBefore.totalPowerPurchased);
+    expect(userAfter.promotionQuota).to.equal(userBefore.promotionQuota);
+    expect(await mining.miningPoolGpc()).to.equal(poolBefore - operationGpc);
+    expect(await gpc.balanceOf(operation.address)).to.equal(operationBefore + operationGpc);
+    expect(await gpc.balanceOf(alice.address)).to.equal(0);
+    expect(await gpc.balanceOf(DEAD_ADDRESS)).to.equal(0);
+
+    const [powerHistory, powerHistoryTotal] = await history.powerHistory(alice.address, 0, 30);
+    expect(powerHistoryTotal).to.equal(3);
+    expect(powerHistory.map(record => record.kind)).to.deep.equal([4n, 2n, 1n]);
+    expect(powerHistory.map(record => record.amount)).to.deep.equal([powerAdded, quote.totalRewardUsdt, e('2000')]);
+    expect(await history.POWER_HISTORY_REINVEST()).to.equal(4);
+
+    const [, quotaHistoryTotal] = await history.promotionQuotaHistory(alice.address, 0, 30);
+    expect(quotaHistoryTotal).to.equal(1);
+    await expect(mining.connect(alice).reinvest())
+      .to.be.revertedWithCustomError(mining, 'WithdrawCooldownActive');
+  });
+
   it('uses mining-pool GPC to add 0.1 BNB when a withdrawal finds the Oracle keeper below 0.1 BNB', async function () {
     const { operation, alice, mining, bindAndOrder } = await loadFixture(deployFixture);
     await bindAndOrder(alice, operation);

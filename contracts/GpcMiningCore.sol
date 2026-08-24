@@ -47,6 +47,7 @@ abstract contract GpcMiningCore is
     uint256 public constant MAX_DAILY_RATE_BPS = 50; // 0.50%, static + community
     uint256 public constant WITHDRAW_FEE_BPS = 1_000; // 10% total: 5% burn + 5% operations
     uint256 private constant WITHDRAW_BURN_BPS = 500; // 5%
+    uint256 public constant REINVEST_MULTIPLIER_BPS = 25_000; // 2.5x on the retained 90% value
     uint256 public constant MAX_WITHDRAW_POOL_BPS = 100; // 1%
     uint256 public constant MAX_GLOBAL_DAILY_WITHDRAW_POOL_BPS = 200; // 2% of window-opening pool
     uint256 public constant SWAP_SLIPPAGE_BPS = 200; // 2% TWAP floor
@@ -65,6 +66,7 @@ abstract contract GpcMiningCore is
     uint8 private constant POWER_HISTORY_ORDER = 1;
     uint8 private constant POWER_HISTORY_WITHDRAW = 2;
     uint8 private constant POWER_HISTORY_EXPIRED = 3;
+    uint8 private constant POWER_HISTORY_REINVEST = 4;
     uint8 private constant QUOTA_HISTORY_ORDER = 1;
     uint8 private constant QUOTA_HISTORY_REFERRAL = 2;
     address private constant BURN_ADDRESS = 0x000000000000000000000000000000000000dEaD;
@@ -171,6 +173,17 @@ abstract contract GpcMiningCore is
         uint256 grossGpc,
         uint256 feeGpc,
         uint256 netGpc,
+        uint256 gpcPrice
+    );
+    event Reinvested(
+        address indexed user,
+        uint256 staticRewardUsdt,
+        uint256 communityRewardUsdt,
+        uint256 powerBurned,
+        uint256 grossGpc,
+        uint256 operationGpc,
+        uint256 retainedGpc,
+        uint256 powerAdded,
         uint256 gpcPrice
     );
     event PowerExpired(address indexed user, uint256 powerBurned, uint256 timestamp);
@@ -453,6 +466,16 @@ abstract contract GpcMiningCore is
     }
 
     /**
+     * @notice Reinvests the caller's available reward into 2.5x mining power.
+     * @dev Ten percent of gross GPC goes to operations. The retained 90% stays in
+     *      the order pool and is valued at the same Oracle price used for claiming.
+     *      This does not place an order, add referral quota or pay a sponsor.
+     */
+    function reinvest() external nonReentrant whenNotPaused {
+        _reinvest(msg.sender);
+    }
+
+    /**
      * @notice Returns the direct-referral reward active at the current block time.
      * @dev Preserves the historical DIRECT_REWARD() selector for integrations.
      */
@@ -489,38 +512,15 @@ abstract contract GpcMiningCore is
     }
 
     function _withdraw(address account) internal {
-        if (_expireIfNeeded(account)) return;
-
-        UserInfo storage user = users[account];
-        if (user.power == 0) revert NoPower();
-        if (block.timestamp < user.nextWithdrawAt) revert WithdrawCooldownActive();
-
-        RewardQuote memory quote = _quoteRewards(account);
-        if (quote.totalRewardUsdt == 0 || quote.grossGpc == 0) revert NoReward();
-        _validateSpotAgainstTwap(quote.gpcPrice, oracle.bnbPrice());
-        _refillOracleKeeperIfNeeded();
-        if (quote.grossGpc * BPS > miningPoolGpc * MAX_WITHDRAW_POOL_BPS) {
-            revert WithdrawExceedsPoolLimit();
-        }
-        _consumeGlobalWithdrawCapacity(quote.grossGpc);
+        RewardQuote memory quote = _prepareRewardSettlement(account);
+        if (quote.grossGpc == 0) return;
 
         uint256 feeGpc = Math.mulDiv(quote.grossGpc, WITHDRAW_FEE_BPS, BPS);
         uint256 burnGpc = Math.mulDiv(quote.grossGpc, WITHDRAW_BURN_BPS, BPS);
         uint256 operationGpc = feeGpc - burnGpc;
         uint256 netGpc = quote.grossGpc - feeGpc;
-        _recordCommunityEarnings(account, quote.communityRewardUsdt);
-
-        user.nextWithdrawAt = uint64(block.timestamp + WITHDRAW_COOLDOWN);
-        user.inactivityStartedAt = uint64(block.timestamp);
-        _decreasePower(account, quote.totalRewardUsdt);
-        _appendPowerHistory(account, quote.totalRewardUsdt, POWER_HISTORY_WITHDRAW);
-        if (user.power == 0) {
-            user.nextWithdrawAt = 0;
-            user.inactivityStartedAt = 0;
-            _removeExpiryUser(account);
-        } else {
-            _upsertExpiryUser(account);
-        }
+        _consumeRewardPower(account, quote);
+        _refreshRewardSchedule(account);
         miningPoolGpc -= quote.grossGpc;
 
         gpc.safeTransfer(account, netGpc);
@@ -537,6 +537,75 @@ abstract contract GpcMiningCore is
             netGpc,
             quote.gpcPrice
         );
+    }
+
+    function _reinvest(address account) internal {
+        RewardQuote memory quote = _prepareRewardSettlement(account);
+        if (quote.grossGpc == 0) return;
+
+        uint256 operationGpc = Math.mulDiv(quote.grossGpc, WITHDRAW_FEE_BPS, BPS);
+        uint256 retainedGpc = quote.grossGpc - operationGpc;
+        uint256 retainedValueUsdt = Math.mulDiv(retainedGpc, quote.gpcPrice, 1 ether);
+        uint256 powerAdded = Math.mulDiv(retainedValueUsdt, REINVEST_MULTIPLIER_BPS, BPS);
+
+        _consumeRewardPower(account, quote);
+        _increasePower(account, powerAdded);
+        _appendPowerHistory(account, powerAdded, POWER_HISTORY_REINVEST);
+        _refreshRewardSchedule(account);
+
+        // The retained GPC already sits in this contract, so only the 10% sent
+        // to operations leaves the order-pool inventory.
+        miningPoolGpc -= operationGpc;
+        gpc.safeTransfer(operationWallet, operationGpc);
+
+        emit Reinvested(
+            account,
+            quote.staticRewardUsdt,
+            quote.communityRewardUsdt,
+            quote.totalRewardUsdt,
+            quote.grossGpc,
+            operationGpc,
+            retainedGpc,
+            powerAdded,
+            quote.gpcPrice
+        );
+    }
+
+    function _prepareRewardSettlement(address account) internal returns (RewardQuote memory quote) {
+        if (_expireIfNeeded(account)) return quote;
+
+        UserInfo storage user = users[account];
+        if (user.power == 0) revert NoPower();
+        if (block.timestamp < user.nextWithdrawAt) revert WithdrawCooldownActive();
+
+        quote = _quoteRewards(account);
+        if (quote.totalRewardUsdt == 0 || quote.grossGpc == 0) revert NoReward();
+        _validateSpotAgainstTwap(quote.gpcPrice, oracle.bnbPrice());
+        _refillOracleKeeperIfNeeded();
+        if (quote.grossGpc * BPS > miningPoolGpc * MAX_WITHDRAW_POOL_BPS) {
+            revert WithdrawExceedsPoolLimit();
+        }
+        _consumeGlobalWithdrawCapacity(quote.grossGpc);
+    }
+
+    function _consumeRewardPower(address account, RewardQuote memory quote) internal {
+        UserInfo storage user = users[account];
+        _recordCommunityEarnings(account, quote.communityRewardUsdt);
+        user.nextWithdrawAt = uint64(block.timestamp + WITHDRAW_COOLDOWN);
+        user.inactivityStartedAt = uint64(block.timestamp);
+        _decreasePower(account, quote.totalRewardUsdt);
+        _appendPowerHistory(account, quote.totalRewardUsdt, POWER_HISTORY_WITHDRAW);
+    }
+
+    function _refreshRewardSchedule(address account) internal {
+        UserInfo storage user = users[account];
+        if (user.power == 0) {
+            user.nextWithdrawAt = 0;
+            user.inactivityStartedAt = 0;
+            _removeExpiryUser(account);
+        } else {
+            _upsertExpiryUser(account);
+        }
     }
 
     function _refillOracleKeeperIfNeeded() internal {

@@ -16,6 +16,7 @@ contract GpcHistoryRegistry is Initializable, Ownable2StepUpgradeable {
     uint8 public constant POWER_HISTORY_ORDER = 1;
     uint8 public constant POWER_HISTORY_WITHDRAW = 2;
     uint8 public constant POWER_HISTORY_EXPIRED = 3;
+    uint8 public constant POWER_HISTORY_REINVEST = 4;
     uint8 public constant QUOTA_HISTORY_ORDER = 1;
     uint8 public constant QUOTA_HISTORY_REFERRAL = 2;
 
@@ -181,7 +182,7 @@ contract GpcHistoryRegistry is Initializable, Ownable2StepUpgradeable {
     }
 
     function _validatePowerHistoryKind(uint8 kind) internal pure {
-        if (kind < POWER_HISTORY_ORDER || kind > POWER_HISTORY_EXPIRED) revert InvalidHistoryKind();
+        if (kind < POWER_HISTORY_ORDER || kind > POWER_HISTORY_REINVEST) revert InvalidHistoryKind();
     }
 
     function _validateQuotaHistoryKind(uint8 kind) internal pure {

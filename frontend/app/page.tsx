@@ -42,7 +42,9 @@ const MINING_ABI = [
   "function placeOrderFor(address beneficiary,uint256 deadline,uint256 userMinGpcOut,uint256 userMinWbnbOut,uint256 userMinLpGpc,uint256 userMinLpWbnb)",
   "function withdraw()",
   "function withdrawFor(address beneficiary)",
+  "function reinvest()",
   "event Withdrawn(address indexed user,uint256 staticRewardUsdt,uint256 communityRewardUsdt,uint256 powerBurned,uint256 grossGpc,uint256 feeGpc,uint256 netGpc,uint256 gpcPrice)",
+  "event Reinvested(address indexed user,uint256 staticRewardUsdt,uint256 communityRewardUsdt,uint256 powerBurned,uint256 grossGpc,uint256 operationGpc,uint256 retainedGpc,uint256 powerAdded,uint256 gpcPrice)",
   "error RootCannotOrder()",
   "error ReferralRequired()",
   "error OrderCooldownActive()",
@@ -283,7 +285,7 @@ function claimFromReceipt(receipt: unknown, beneficiary: string): ClaimTotals | 
     if (!log.topics || !log.data) continue;
     try {
       const parsed = MINING_INTERFACE.parseLog({ topics: log.topics, data: log.data });
-      if (!parsed || parsed.name !== "Withdrawn" || String(parsed.args.user).toLowerCase() !== beneficiary.toLowerCase()) continue;
+      if (!parsed || (parsed.name !== "Withdrawn" && parsed.name !== "Reinvested") || String(parsed.args.user).toLowerCase() !== beneficiary.toLowerCase()) continue;
       return claimTotals(
         parsed.args.staticRewardUsdt as bigint,
         parsed.args.communityRewardUsdt as bigint,
@@ -307,8 +309,10 @@ async function loadTodayClaims(account: string) {
   const todayEnd = todayStart + daySeconds;
   const firstBlock = Math.max(MINING_DEPLOYMENT_BLOCK, latestBlock.number - 200_000);
   const accountTopic = zeroPadValue(account, 32);
-  const withdrawTopic = MINING_INTERFACE.getEvent("Withdrawn")!.topicHash;
-  const logs = await getLogsInRanges(HISTORY_PROVIDER, [withdrawTopic, accountTopic], latestBlock.number, firstBlock);
+  const rewardTopics = ["Withdrawn", "Reinvested"].map(name => MINING_INTERFACE.getEvent(name)!.topicHash);
+  const logs = (await Promise.all(rewardTopics.map(topic =>
+    getLogsInRanges(HISTORY_PROVIDER, [topic, accountTopic], latestBlock.number, firstBlock)
+  ))).flat();
   const blockNumbers = [...new Set(logs.map(log => log.blockNumber))];
   const blocks = await Promise.all(blockNumbers.map(blockNumber => HISTORY_PROVIDER.getBlock(blockNumber)));
   const timestamps = new Map(blocks.filter(Boolean).map(block => [block!.number, block!.timestamp]));
@@ -484,6 +488,7 @@ export default function Home() {
           1: { zh: "质押增加", en: "Added by staking" },
           2: { zh: "领取收益消耗", en: "Used to claim rewards" },
           3: { zh: "180 天未提现清零", en: "Expired after 180 days" },
+          4: { zh: "2.5倍复投", en: "2.5x reinvestment" },
         };
         const quotaLabels: Record<number, LocalizedStatus> = {
           1: { zh: "质押增加", en: "Added by staking" },
@@ -492,7 +497,7 @@ export default function Home() {
         return {
           id: `${record.timestamp}-${recordKind}-${index}`,
           timestamp: Number(record.timestamp),
-          direction: recordKind === 1 ? "increase" : "decrease",
+          direction: recordKind === 1 || recordKind === 4 ? "increase" : "decrease",
           amount: record.amount,
           label: (kind === "power" ? powerLabels : quotaLabels)[recordKind] ?? { zh: "链上变更", en: "On-chain change" },
         };
@@ -856,6 +861,14 @@ export default function Home() {
     }, account);
   }
 
+  function reinvest() {
+    return runTransaction({ zh: "2.5倍复投", en: "2.5x reinvest" }, async signer => {
+      const mining = new Contract(MINING_ADDRESS, MINING_ABI, signer);
+      const estimatedGas = await mining.reinvest.estimateGas();
+      return mining.reinvest({ gasLimit: gasLimitWithHeadroom(estimatedGas) });
+    }, account);
+  }
+
   function switchTab(tab: AppTab) {
     if (bindingRequired) {
       setStatus({ zh: "请先绑定有效的上级地址", en: "Bind a valid sponsor before continuing" });
@@ -981,9 +994,14 @@ export default function Home() {
               <i />
               <div><span>{text("社区收益", "Community reward")}</span><strong>{todayClaimsError ? "--" : compact(snapshot.claimedTodayDynamicGpc, language, 4)} GPC</strong></div>
             </div>
-            <button className="claim-button" onClick={withdraw} disabled={busy || !account || !canWithdraw || snapshot.totalReward === 0n}>
-              <DappIcon name="withdraw" size={18} />{text("领取收益", "Claim rewards")}
-            </button>
+            <div className="claim-actions">
+              <button className="claim-button" onClick={withdraw} disabled={busy || !account || !canWithdraw || snapshot.totalReward === 0n}>
+                <DappIcon name="withdraw" size={17} />{text("领取收益", "Claim")}
+              </button>
+              <button className="claim-button reinvest-button" onClick={reinvest} disabled={busy || !account || !canWithdraw || snapshot.totalReward === 0n}>
+                <DappIcon name="refresh" size={17} />{text("2.5倍复投", "2.5x Reinvest")}
+              </button>
+            </div>
             <div className="countdown-line"><span>{text("下次可领取", "Next claim")}</span><strong>{canWithdraw ? text("当前可领取", "Available now") : formatTime(snapshot.nextWithdrawAt, language)}</strong></div>
             <span className="card-glow" />
           </section>
