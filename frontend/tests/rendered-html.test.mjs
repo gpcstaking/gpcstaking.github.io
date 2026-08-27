@@ -35,6 +35,10 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(html, /全部收益/);
   assert.match(html, /个人收益/);
   assert.match(html, /社区收益/);
+  assert.match(html, /自动提现/);
+  assert.match(html, /自动复投/);
+  assert.match(html, /增加/);
+  assert.match(html, /自动执行次数/);
   assert.match(html, /GPC 销毁量/);
   assert.doesNotMatch(html, /提现分配|90% 到账 · 5% 销毁 · 5% 运营/);
   assert.doesNotMatch(html, /今日可领取|今日预计/);
@@ -94,6 +98,17 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /openLedger\("promotionQuota"\)/);
   assert.match(source, /event Withdrawn/);
   assert.match(source, /function reinvest\(\)/);
+  assert.match(source, /const AUTO_WITHDRAW_ADDRESS = "0x216d39F9BC956b65Ef0C1eEA078573d1aB7456F2"/);
+  assert.match(source, /const AUTO_REINVEST_ADDRESS = "0x0B4E5cccb90f3a8A0c6DAA9A5851d7B2A845A8B1"/);
+  assert.match(source, /function CREDIT_PRICE\(\) view returns \(uint256\)/);
+  assert.match(source, /function buyFor\(address beneficiary\) payable returns \(uint256 credits\)/);
+  assert.match(source, /autoWithdraw\.balanceOf\(activeAccount\)/);
+  assert.match(source, /autoReinvest\.balanceOf\(activeAccount\)/);
+  assert.match(source, /onChainPrice \* BigInt\(autoCreditQuantity\)/);
+  assert.match(source, /credits\.buyFor\.estimateGas\(account, \{ value \}\)/);
+  assert.match(source, /冷却结束后保留 10 分钟手动操作时间/);
+  assert.match(source, /冷却结束后保留 5 分钟手动操作时间/);
+  assert.match(source, /两种次数互不通用，仅执行成功时扣除/);
   assert.match(source, /event Reinvested/);
   assert.match(source, /function historyRegistry\(\)/);
   assert.match(source, /function powerHistory\(address account/);

@@ -17,6 +17,8 @@ const USDT_ADDRESS = "0x55d398326f99059fF775485246999027B3197955";
 const GPC_ADDRESS = "0xD3c304697f63B279cd314F92c19cDBE5E5b1631A";
 const WBNB_ADDRESS = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c";
 const DEAD_ADDRESS = "0x000000000000000000000000000000000000dEaD";
+const AUTO_WITHDRAW_ADDRESS = "0x216d39F9BC956b65Ef0C1eEA078573d1aB7456F2";
+const AUTO_REINVEST_ADDRESS = "0x0B4E5cccb90f3a8A0c6DAA9A5851d7B2A845A8B1";
 const BSC_CHAIN_ID = "0x38";
 
 const MINING_ABI = [
@@ -70,6 +72,14 @@ const ERC20_ABI = [
   "function approve(address,uint256) returns (bool)",
 ];
 
+const AUTO_CREDIT_ABI = [
+  "function balanceOf(address) view returns (uint256)",
+  "function CREDIT_PRICE() view returns (uint256)",
+  "function buyFor(address beneficiary) payable returns (uint256 credits)",
+  "error PaymentTooSmall()",
+  "error ZeroAddress()",
+];
+
 const ROUTER_ABI = [
   "function getAmountsOut(uint256 amountIn,address[] path) view returns (uint256[] amounts)",
 ];
@@ -87,6 +97,8 @@ const ORDER_DEADLINE_SECONDS = 60;
 const DIRECT_REFERRAL_PAGE_SIZE = 20;
 const LP_SLIPPAGE_BPS = 200n;
 const TRANSACTION_GAS_HEADROOM_BPS = 3_000n; // BSC estimation can underfund nested contract calls
+const DEFAULT_AUTO_CREDIT_PRICE = 5n * 10n ** 14n;
+const MAX_AUTO_CREDIT_PURCHASE = 100;
 
 type Snapshot = {
   power: bigint;
@@ -116,6 +128,10 @@ type Snapshot = {
   teamNodeCount: bigint;
   directReferralCount: bigint;
   directReferrals: Array<{ address: string; branchPower: bigint }>;
+  autoWithdrawCredits: bigint;
+  autoReinvestCredits: bigint;
+  autoWithdrawCreditPrice: bigint;
+  autoReinvestCreditPrice: bigint;
 };
 
 type AppTab = "home" | "order" | "team" | "ecosystem";
@@ -128,6 +144,7 @@ type LedgerEntry = {
   label: LocalizedStatus;
 };
 type Language = "zh" | "en";
+type AutoCreditKind = "withdraw" | "reinvest";
 type LocalizedStatus = { zh: string; en: string };
 type ClaimTotals = {
   gpc: bigint;
@@ -166,6 +183,10 @@ const emptySnapshot: Snapshot = {
   teamNodeCount: 0n,
   directReferralCount: 0n,
   directReferrals: [],
+  autoWithdrawCredits: 0n,
+  autoReinvestCredits: 0n,
+  autoWithdrawCreditPrice: DEFAULT_AUTO_CREDIT_PRICE,
+  autoReinvestCreditPrice: DEFAULT_AUTO_CREDIT_PRICE,
 };
 
 declare global {
@@ -421,6 +442,8 @@ export default function Home() {
   const [referralsLoading, setReferralsLoading] = useState(false);
   const [serviceMode, setServiceMode] = useState(false);
   const [serviceBeneficiary, setServiceBeneficiary] = useState("");
+  const [autoCreditPurchase, setAutoCreditPurchase] = useState<AutoCreditKind | null>(null);
+  const [autoCreditQuantity, setAutoCreditQuantity] = useState(1);
   const refreshSequence = useRef(0);
 
   const text = (zh: string, en: string) => language === "zh" ? zh : en;
@@ -432,6 +455,10 @@ export default function Home() {
   const canWithdraw = snapshot.nextWithdrawAt !== 0 && currentTime >= snapshot.nextWithdrawAt;
   const bindingRequired = Boolean(account) && !isBound;
   const promotionalDirectRewardActive = currentTime < DIRECT_REWARD_PROMOTION_END;
+  const selectedAutoCreditPrice = autoCreditPurchase === "reinvest"
+    ? snapshot.autoReinvestCreditPrice
+    : snapshot.autoWithdrawCreditPrice;
+  const autoCreditTotal = selectedAutoCreditPrice * BigInt(autoCreditQuantity);
 
   useEffect(() => {
     const restoreServiceMode = window.setTimeout(() => {
@@ -532,6 +559,7 @@ export default function Home() {
       setLedgerError(null);
       setTodayClaimsError(false);
       setReferralsLoading(false);
+      setAutoCreditPurchase(null);
       setStatus({ zh: "钱包账户或网络已变更，请重新连接", en: "Wallet account or network changed. Please reconnect." });
     };
     ethereum.on("accountsChanged", invalidateSession);
@@ -552,9 +580,11 @@ export default function Home() {
     const mining = new Contract(MINING_ADDRESS, MINING_ABI, activeProvider);
     const usdt = new Contract(USDT_ADDRESS, ERC20_ABI, activeProvider);
     const gpc = new Contract(GPC_ADDRESS, ERC20_ABI, activeProvider);
+    const autoWithdraw = new Contract(AUTO_WITHDRAW_ADDRESS, AUTO_CREDIT_ABI, activeProvider);
+    const autoReinvest = new Contract(AUTO_REINVEST_ADDRESS, AUTO_CREDIT_ABI, activeProvider);
     setTodayClaimsError(false);
     const todayClaimsPromise = loadTodayClaims(activeAccount);
-    const [user, parent, totalPower, poolGpc, community, largestBranch, teamNodeCount, communityClaimedToday, usdtBalance, allowance, oracleAddress, burnedGpc] = await Promise.all([
+    const [user, parent, totalPower, poolGpc, community, largestBranch, teamNodeCount, communityClaimedToday, usdtBalance, allowance, oracleAddress, burnedGpc, autoWithdrawCredits, autoReinvestCredits, autoWithdrawCreditPrice, autoReinvestCreditPrice] = await Promise.all([
       mining.users(activeAccount),
       mining.parentOf(activeAccount),
       mining.totalPower(),
@@ -567,6 +597,10 @@ export default function Home() {
       usdt.allowance(activeAccount, MINING_ADDRESS),
       mining.oracle(),
       gpc.balanceOf(DEAD_ADDRESS),
+      autoWithdraw.balanceOf(activeAccount),
+      autoReinvest.balanceOf(activeAccount),
+      autoWithdraw.CREDIT_PRICE(),
+      autoReinvest.CREDIT_PRICE(),
     ]);
     const referralPage = await loadDirectReferralPage(mining, activeAccount, 0);
     const directReferralCount = referralPage.total;
@@ -616,6 +650,10 @@ export default function Home() {
       teamNodeCount,
       directReferralCount,
       directReferrals,
+      autoWithdrawCredits,
+      autoReinvestCredits,
+      autoWithdrawCreditPrice,
+      autoReinvestCreditPrice,
     });
     void todayClaimsPromise.then(todayClaims => {
       if (refreshSequence.current !== refreshId) return;
@@ -882,6 +920,38 @@ export default function Home() {
     }, account);
   }
 
+  function openAutoCreditPurchase(kind: AutoCreditKind) {
+    if (!account) {
+      void connectWallet();
+      return;
+    }
+    setAutoCreditQuantity(1);
+    setAutoCreditPurchase(kind);
+  }
+
+  function updateAutoCreditQuantity(nextQuantity: number) {
+    setAutoCreditQuantity(Math.max(1, Math.min(MAX_AUTO_CREDIT_PURCHASE, Math.trunc(nextQuantity) || 1)));
+  }
+
+  async function purchaseAutoCredits() {
+    if (!autoCreditPurchase || !account) return false;
+    const kind = autoCreditPurchase;
+    const contractAddress = kind === "withdraw" ? AUTO_WITHDRAW_ADDRESS : AUTO_REINVEST_ADDRESS;
+    const label = kind === "withdraw"
+      ? { zh: "增加自动提现次数", en: "Add auto-claim credits" }
+      : { zh: "增加自动复投次数", en: "Add auto-reinvest credits" };
+
+    const succeeded = await runTransaction(label, async signer => {
+      const credits = new Contract(contractAddress, AUTO_CREDIT_ABI, signer);
+      const onChainPrice = await credits.CREDIT_PRICE() as bigint;
+      const value = onChainPrice * BigInt(autoCreditQuantity);
+      const estimatedGas = await credits.buyFor.estimateGas(account, { value });
+      return credits.buyFor(account, { value, gasLimit: gasLimitWithHeadroom(estimatedGas) });
+    });
+    if (succeeded) setAutoCreditPurchase(null);
+    return succeeded;
+  }
+
   function switchTab(tab: AppTab) {
     if (bindingRequired) {
       setStatus({ zh: "请先绑定有效的上级地址", en: "Bind a valid sponsor before continuing" });
@@ -1020,6 +1090,16 @@ export default function Home() {
                 <DappIcon name="refresh" size={17} />{text("2.5倍复投", "2.5x Reinvest")}
               </button>
             </div>
+            <div className="auto-credit-grid" aria-label={text("自动执行次数", "Automatic action credits")}>
+              <div className="auto-credit-item">
+                <span>{text("自动提现", "Auto claim")}：<strong>{formatCount(snapshot.autoWithdrawCredits, language)} {text("次", "credits")}</strong></span>
+                <button type="button" onClick={() => openAutoCreditPurchase("withdraw")} disabled={busy}>{text("增加", "Add")}</button>
+              </div>
+              <div className="auto-credit-item">
+                <span>{text("自动复投", "Auto reinvest")}：<strong>{formatCount(snapshot.autoReinvestCredits, language)} {text("次", "credits")}</strong></span>
+                <button type="button" onClick={() => openAutoCreditPurchase("reinvest")} disabled={busy}>{text("增加", "Add")}</button>
+              </div>
+            </div>
             <div className="countdown-line"><span>{text("下次可领取", "Next claim")}</span><strong>{canWithdraw ? text("当前可领取", "Available now") : formatTime(snapshot.nextWithdrawAt, language)}</strong></div>
             <span className="card-glow" />
           </section>
@@ -1154,6 +1234,47 @@ export default function Home() {
           <button className={activeTab === "team" ? "active" : ""} onClick={() => switchTab("team")}><DappIcon name="team" /><span>{text("团队", "Team")}</span></button>
           <button className={activeTab === "ecosystem" ? "active" : ""} onClick={() => switchTab("ecosystem")}><DappIcon name="link" /><span>{text("生态", "Ecosystem")}</span></button>
         </nav>}
+
+        {autoCreditPurchase && account && (
+          <div className="auto-credit-gate" role="presentation">
+            <section className="auto-credit-modal" role="dialog" aria-modal="true" aria-labelledby="auto-credit-title">
+              <div className="auto-credit-modal-heading">
+                <div>
+                  <small>AUTO EXECUTION</small>
+                  <h2 id="auto-credit-title">{autoCreditPurchase === "withdraw" ? text("增加自动提现次数", "Add auto-claim credits") : text("增加自动复投次数", "Add auto-reinvest credits")}</h2>
+                </div>
+                <button type="button" onClick={() => setAutoCreditPurchase(null)} disabled={busy} aria-label={text("关闭", "Close")}>×</button>
+              </div>
+
+              <p className="auto-credit-description">
+                {autoCreditPurchase === "withdraw"
+                  ? text("冷却结束后保留 10 分钟手动操作时间，随后执行自动提现；成功后扣除 1 次。", "After cooldown, you retain a 10-minute manual-action window. Auto claim then runs and consumes one credit only on success.")
+                  : text("冷却结束后保留 5 分钟手动操作时间，随后执行 2.5 倍自动复投；成功后扣除 1 次。", "After cooldown, you retain a 5-minute manual-action window. 2.5x auto reinvest then runs and consumes one credit only on success.")}
+              </p>
+
+              <div className="auto-credit-details">
+                <div><span>{text("当前剩余", "Current balance")}</span><strong>{formatCount(autoCreditPurchase === "withdraw" ? snapshot.autoWithdrawCredits : snapshot.autoReinvestCredits, language)} {text("次", "credits")}</strong></div>
+                <div><span>{text("单价", "Unit price")}</span><strong>{formatEther(selectedAutoCreditPrice)} BNB/{text("次", "credit")}</strong></div>
+              </div>
+
+              <div className="auto-credit-quantity">
+                <span>{text("购买次数", "Quantity")}</span>
+                <div>
+                  <button type="button" onClick={() => updateAutoCreditQuantity(autoCreditQuantity - 1)} disabled={busy || autoCreditQuantity <= 1} aria-label={text("减少次数", "Decrease quantity")}>−</button>
+                  <strong>{autoCreditQuantity}</strong>
+                  <button type="button" onClick={() => updateAutoCreditQuantity(autoCreditQuantity + 1)} disabled={busy || autoCreditQuantity >= MAX_AUTO_CREDIT_PURCHASE} aria-label={text("增加次数", "Increase quantity")}>+</button>
+                </div>
+              </div>
+              <div className="auto-credit-presets">
+                {[1, 3, 5, 10].map(quantity => <button type="button" className={autoCreditQuantity === quantity ? "active" : ""} onClick={() => updateAutoCreditQuantity(quantity)} disabled={busy} key={quantity}>{quantity} {text("次", "credits")}</button>)}
+              </div>
+
+              <div className="auto-credit-total"><span>{text("合计", "Total")}</span><strong>{formatEther(autoCreditTotal)} BNB</strong></div>
+              <button className="auto-credit-confirm" type="button" onClick={purchaseAutoCredits} disabled={busy}>{busy ? text("处理中…", "Processing…") : text(`支付 ${formatEther(autoCreditTotal)} BNB`, `Pay ${formatEther(autoCreditTotal)} BNB`)}</button>
+              <small className="auto-credit-note"><DappIcon name="shield" size={13} />{text("两种次数互不通用，仅执行成功时扣除", "Credit types are separate and are consumed only after successful execution")}</small>
+            </section>
+          </div>
+        )}
 
         {bindingRequired && !serviceMode && (
           <div className="binding-gate" role="dialog" aria-modal="true" aria-labelledby="binding-title">
