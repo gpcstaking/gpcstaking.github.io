@@ -1266,7 +1266,7 @@ export default function Home() {
                 </div>
               </div>
               <div className="auto-credit-presets">
-                {[1, 3, 5, 10].map(quantity => <button type="button" className={autoCreditQuantity === quantity ? "active" : ""} onClick={() => updateAutoCreditQuantity(quantity)} disabled={busy} key={quantity}>{quantity} {text("次", "credits")}</button>)}
+                {[1, 5, 10, 30].map(quantity => <button type="button" className={autoCreditQuantity === quantity ? "active" : ""} onClick={() => updateAutoCreditQuantity(quantity)} disabled={busy} key={quantity}>{quantity} {text("次", "credits")}</button>)}
               </div>
 
               <div className="auto-credit-total"><span>{text("合计", "Total")}</span><strong>{formatEther(autoCreditTotal)} BNB</strong></div>
