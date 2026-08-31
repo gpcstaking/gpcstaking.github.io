@@ -158,7 +158,7 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /serviceMode \|\| activeTab/);
   assert.match(source, /bindingRequired && !serviceMode/);
   assert.match(source, /任何钱包均可为已绑定用户代报单、代提现或代复投/);
-  assert.match(source, /90% 到目标钱包，5% 销毁，5% 到运营钱包/);
+  assert.match(source, /90% 到目标钱包，10% 到运营钱包/);
   assert.match(source, /当前钱包支付 1000 USDT/);
   assert.match(source, /<article className="service-action-card withdraw-card">/);
   assert.match(source, /<article className="service-action-card reinvest-card">/);

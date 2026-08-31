@@ -1023,7 +1023,7 @@ export default function Home() {
                 </article>
 
                 <article className="service-action-card withdraw-card">
-                  <div className="service-action-title"><span className="heading-icon"><DappIcon name="withdraw" size={17} /></span><div><strong>{text("代提现", "Assisted claim")}</strong><small>{text("90% 到目标钱包，5% 销毁，5% 到运营钱包", "90% goes to the beneficiary, 5% is burned, and 5% goes to operations")}</small></div></div>
+                  <div className="service-action-title"><span className="heading-icon"><DappIcon name="withdraw" size={17} /></span><div><strong>{text("代提现", "Assisted claim")}</strong><small>{text("90% 到目标钱包，10% 到运营钱包", "90% goes to the beneficiary and 10% goes to operations")}</small></div></div>
                   <button className="service-action-button secondary" onClick={serviceWithdraw} disabled={busy || !isAddress(serviceBeneficiary)}>{text("确认代提现", "Confirm assisted claim")}</button>
                 </article>
 
