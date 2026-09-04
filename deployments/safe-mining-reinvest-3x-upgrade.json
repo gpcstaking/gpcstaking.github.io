@@ -1,0 +1,42 @@
+{
+  "chainId": "56",
+  "meta": {
+    "name": "GPC Mining 3x Reinvestment Upgrade",
+    "description": "Upgrade GPC STAKING so manual, assisted, and automatic reinvestment add power at a 3x multiplier. The 10% operations and 90% retained-GPC split is unchanged.",
+    "txBuilderVersion": "1.18.0",
+    "createdFromSafeAddress": "0xA115A26023eF5072057DBF9Ef43C2f61F79F38b7"
+  },
+  "transactions": [
+    {
+      "to": "0xe15BEd123F57DC1d3d0C09Bc7DB31350Fc5CE69C",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+            "internalType": "contract ITransparentUpgradeableProxy",
+            "name": "proxy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "implementation",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "name": "upgradeAndCall",
+        "payable": true
+      },
+      "contractInputsValues": {
+        "proxy": "0xfA2121198a3ed0c0E2C316Fe3b8D36508AE00b03",
+        "implementation": "0x7450fa08caC4A92C25Ef0d63529D2d86D16221a8",
+        "data": "0x"
+      }
+    }
+  ]
+}

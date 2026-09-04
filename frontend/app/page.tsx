@@ -516,7 +516,7 @@ export default function Home() {
           1: { zh: "质押增加", en: "Added by staking" },
           2: { zh: "领取收益消耗", en: "Used to claim rewards" },
           3: { zh: "180 天未提现清零", en: "Expired after 180 days" },
-          4: { zh: "2.5倍复投", en: "2.5x reinvestment" },
+          4: { zh: "3倍复投", en: "3x reinvestment" },
         };
         const quotaLabels: Record<number, LocalizedStatus> = {
           1: { zh: "质押增加", en: "Added by staking" },
@@ -913,7 +913,7 @@ export default function Home() {
   }
 
   function reinvest() {
-    return runTransaction({ zh: "2.5倍复投", en: "2.5x reinvest" }, async signer => {
+    return runTransaction({ zh: "3倍复投", en: "3x reinvest" }, async signer => {
       const mining = new Contract(MINING_ADDRESS, MINING_ABI, signer);
       const estimatedGas = await mining.reinvest.estimateGas();
       return mining.reinvest({ gasLimit: gasLimitWithHeadroom(estimatedGas) });
@@ -1028,7 +1028,7 @@ export default function Home() {
                 </article>
 
                 <article className="service-action-card reinvest-card">
-                  <div className="service-action-title"><span className="heading-icon"><DappIcon name="refresh" size={17} /></span><div><strong>{text("代复投", "Assisted reinvest")}</strong><small>{text("10% GPC 到运营钱包，90% 留在订单矿池并按2.5倍给目标用户增加算力", "10% GPC goes to operations; 90% stays in the order pool and adds 2.5x power to the beneficiary")}</small></div></div>
+                  <div className="service-action-title"><span className="heading-icon"><DappIcon name="refresh" size={17} /></span><div><strong>{text("代复投", "Assisted reinvest")}</strong><small>{text("10% GPC 到运营钱包，90% 留在订单矿池并按3倍给目标用户增加算力", "10% GPC goes to operations; 90% stays in the order pool and adds 3x power to the beneficiary")}</small></div></div>
                   <button className="service-action-button reinvest-secondary" onClick={serviceReinvest} disabled={busy || !isAddress(serviceBeneficiary)}>{text("确认代复投", "Confirm assisted reinvest")}</button>
                 </article>
               </>
@@ -1087,7 +1087,7 @@ export default function Home() {
                 <DappIcon name="withdraw" size={17} />{text("领取收益", "Claim")}
               </button>
               <button className="claim-button reinvest-button" onClick={reinvest} disabled={busy || !account || !canWithdraw || snapshot.totalReward === 0n}>
-                <DappIcon name="refresh" size={17} />{text("2.5倍复投", "2.5x Reinvest")}
+                <DappIcon name="refresh" size={17} />{text("3倍复投", "3x Reinvest")}
               </button>
             </div>
             <div className="auto-credit-grid" aria-label={text("自动执行次数", "Automatic action credits")}>
@@ -1249,7 +1249,7 @@ export default function Home() {
               <p className="auto-credit-description">
                 {autoCreditPurchase === "withdraw"
                   ? text("冷却结束后保留 10 分钟手动操作时间，随后执行自动提现；成功后扣除 1 次。", "After cooldown, you retain a 10-minute manual-action window. Auto claim then runs and consumes one credit only on success.")
-                  : text("冷却结束后保留 5 分钟手动操作时间，随后执行 2.5 倍自动复投；成功后扣除 1 次。", "After cooldown, you retain a 5-minute manual-action window. 2.5x auto reinvest then runs and consumes one credit only on success.")}
+                  : text("冷却结束后保留 5 分钟手动操作时间，随后执行 3 倍自动复投；成功后扣除 1 次。", "After cooldown, you retain a 5-minute manual-action window. 3x auto reinvest then runs and consumes one credit only on success.")}
               </p>
 
               <div className="auto-credit-details">

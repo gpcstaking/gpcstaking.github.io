@@ -47,7 +47,7 @@ abstract contract GpcMiningCore is
     uint256 public constant MAX_DAILY_RATE_BPS = 50; // 0.50%, static + community
     uint256 public constant WITHDRAW_FEE_BPS = 1_000; // 10% total: 5% burn + 5% operations
     uint256 private constant WITHDRAW_BURN_BPS = 500; // 5%
-    uint256 public constant REINVEST_MULTIPLIER_BPS = 25_000; // 2.5x on the retained 90% value
+    uint256 public constant REINVEST_MULTIPLIER_BPS = 30_000; // 3x on the retained 90% value
     uint256 public constant MAX_WITHDRAW_POOL_BPS = 100; // 1%
     uint256 public constant MAX_GLOBAL_DAILY_WITHDRAW_POOL_BPS = 200; // 2% of window-opening pool
     uint256 public constant SWAP_SLIPPAGE_BPS = 200; // 2% TWAP floor
@@ -466,7 +466,7 @@ abstract contract GpcMiningCore is
     }
 
     /**
-     * @notice Reinvests the caller's available reward into 2.5x mining power.
+     * @notice Reinvests the caller's available reward into 3x mining power.
      * @dev Ten percent of gross GPC goes to operations. The retained 90% stays in
      *      the order pool and is valued at the same Oracle price used for claiming.
      *      This does not place an order, add referral quota or pay a sponsor.
@@ -476,7 +476,7 @@ abstract contract GpcMiningCore is
     }
 
     /**
-     * @notice Lets any wallet trigger an available 2.5x reinvestment for a beneficiary.
+     * @notice Lets any wallet trigger an available 3x reinvestment for a beneficiary.
      * @dev All resulting power is credited to the beneficiary; the caller receives nothing.
      */
     function reinvestFor(address beneficiary) external nonReentrant whenNotPaused {

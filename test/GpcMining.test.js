@@ -257,7 +257,7 @@ describe('GpcMiningCore', function () {
       .to.be.revertedWithCustomError(mining, 'WithdrawCooldownActive');
   });
 
-  it('reinvests the retained 90% GPC at 2.5x without order or referral side effects', async function () {
+  it('reinvests the retained 90% GPC at 3x without order or referral side effects', async function () {
     const { operation, alice, bob, gpc, mining, history, bindAndOrder } = await loadFixture(deployFixture);
     await bindAndOrder(alice, operation);
     await time.increase(24 * 60 * 60);
@@ -266,12 +266,12 @@ describe('GpcMiningCore', function () {
     const operationGpc = quote.grossGpc / 10n;
     const retainedGpc = quote.grossGpc - operationGpc;
     const retainedValueUsdt = retainedGpc * quote.gpcPrice / e('1');
-    const powerAdded = retainedValueUsdt * 25_000n / 10_000n;
+    const powerAdded = retainedValueUsdt * 30_000n / 10_000n;
     const poolBefore = await mining.miningPoolGpc();
     const operationBefore = await gpc.balanceOf(operation.address);
     const userBefore = await mining.users(alice.address);
 
-    expect(await mining.REINVEST_MULTIPLIER_BPS()).to.equal(25_000);
+    expect(await mining.REINVEST_MULTIPLIER_BPS()).to.equal(30_000);
     await expect(mining.connect(alice).reinvest())
       .to.emit(mining, 'Reinvested')
       .withArgs(

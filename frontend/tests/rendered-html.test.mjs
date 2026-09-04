@@ -116,7 +116,7 @@ test("server-renders the GPC mining application shell", async () => {
   assert.doesNotMatch(source, /getLogsInRanges\(HISTORY_PROVIDER, \[orderTopic/);
   assert.match(source, /质押增加/);
   assert.match(source, /领取收益消耗/);
-  assert.match(source, /2\.5倍复投/);
+  assert.match(source, /3倍复投/);
   assert.match(source, /180 天未提现清零/);
   assert.match(source, /直推奖励消耗/);
   assert.match(source, /loadTodayClaims/);
