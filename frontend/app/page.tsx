@@ -5,11 +5,7 @@ import {
   BrowserProvider,
   Contract,
   formatEther,
-  Interface,
   isAddress,
-  JsonRpcProvider,
-  type Log,
-  zeroPadValue,
 } from "ethers";
 
 const MINING_ADDRESS = "0xfA2121198a3ed0c0E2C316Fe3b8D36508AE00b03";
@@ -23,7 +19,7 @@ const BSC_CHAIN_ID = "0x38";
 
 const MINING_ABI = [
   "function parentOf(address) view returns (address)",
-  "function users(address) view returns (uint256 power,uint256 totalPowerPurchased,uint256 promotionQuota,uint64 lastOrderAt,uint64 nextWithdrawAt,uint64 inactivityStartedAt)",
+  "function users(address) view returns (uint256 power,uint256 totalPowerPurchased,uint256 legacyReserved,uint64 lastOrderAt,uint64 nextWithdrawAt,uint64 inactivityStartedAt)",
   "function totalPower() view returns (uint256)",
   "function miningPoolGpc() view returns (uint256)",
   "function communityPower(address) view returns (uint256 total,uint256 largestBranchPower,uint256 smallArea,uint256 effectiveSmallArea)",
@@ -34,6 +30,7 @@ const MINING_ABI = [
   "function largestBranch(address) view returns (address branch,uint256 power)",
   "function teamNodeCount(address) view returns (uint256)",
   "function communityClaimedToday(address) view returns (uint256)",
+  "function rewardsClaimedToday(address) view returns (uint256 grossGpc,uint256 staticRewardUsdt,uint256 communityRewardUsdt)",
   "function historyRegistry() view returns (address)",
   "function quoteRewards(address) view returns ((uint256 staticRewardUsdt,uint256 communityRewardUsdt,uint256 totalRewardUsdt,uint256 grossGpc,uint256 gpcPrice,uint256 poolValueUsdt,uint256 smallAreaPower,uint256 effectiveSmallAreaPower,bool poolLimitedMode))",
   "function oracle() view returns (address)",
@@ -59,7 +56,6 @@ const MINING_ABI = [
 
 const HISTORY_ABI = [
   "function powerHistory(address account,uint256 offset,uint256 limit) view returns ((uint256 amount,uint64 timestamp,uint8 kind)[] records,uint256 total)",
-  "function promotionQuotaHistory(address account,uint256 offset,uint256 limit) view returns ((uint256 amount,uint64 timestamp,uint8 kind)[] records,uint256 total)",
 ];
 
 const ORACLE_ABI = [
@@ -89,9 +85,6 @@ const ORDER_AMOUNT = 1_000n * 10n ** 18n;
 const DIRECT_REWARD_PROMOTION_END = 1_790_784_000;
 const WBNB_SWAP_AMOUNT = 50n * 10n ** 18n;
 const BPS = 10_000n;
-const MINING_DEPLOYMENT_BLOCK = 111_241_087;
-const LOG_QUERY_BLOCK_SPAN = 50_000;
-const HISTORY_PROVIDER = new JsonRpcProvider("https://bsc.rpc.blxrbdn.com", 56, { staticNetwork: true, batchMaxCount: 1 });
 const USER_SWAP_SLIPPAGE_BPS = 30n; // 0.3% from the pre-signing router quote
 const ORDER_DEADLINE_SECONDS = 60;
 const DIRECT_REFERRAL_PAGE_SIZE = 20;
@@ -102,7 +95,6 @@ const MAX_AUTO_CREDIT_PURCHASE = 100;
 
 type Snapshot = {
   power: bigint;
-  promotionQuota: bigint;
   nextWithdrawAt: number;
   inactivityStartedAt: number;
   parent: string;
@@ -135,7 +127,6 @@ type Snapshot = {
 };
 
 type AppTab = "home" | "order" | "team" | "ecosystem";
-type LedgerKind = "power" | "promotionQuota";
 type LedgerEntry = {
   id: string;
   timestamp: number;
@@ -153,11 +144,8 @@ type ClaimTotals = {
   dynamicGpc: bigint;
 };
 
-const MINING_INTERFACE = new Interface(MINING_ABI);
-
 const emptySnapshot: Snapshot = {
   power: 0n,
-  promotionQuota: 0n,
   nextWithdrawAt: 0,
   inactivityStartedAt: 0,
   parent: ZERO_ADDRESS,
@@ -265,28 +253,6 @@ function formatLedgerTime(timestamp: number, language: Language) {
   }).format(new Date(timestamp * 1000));
 }
 
-async function getLogsInRanges(provider: JsonRpcProvider, topics: Array<string | null>, latestBlock: number, firstBlock = MINING_DEPLOYMENT_BLOCK) {
-  const getRange = async (fromBlock: number, toBlock: number): Promise<Log[]> => {
-    try {
-      return await provider.getLogs({ address: MINING_ADDRESS, fromBlock, toBlock, topics });
-    } catch (error) {
-      if (fromBlock >= toBlock) throw error;
-      const midpoint = Math.floor((fromBlock + toBlock) / 2);
-      const [left, right] = await Promise.all([
-        getRange(fromBlock, midpoint),
-        getRange(midpoint + 1, toBlock),
-      ]);
-      return [...left, ...right];
-    }
-  };
-
-  const logs: Log[] = [];
-  for (let fromBlock = firstBlock; fromBlock <= latestBlock; fromBlock += LOG_QUERY_BLOCK_SPAN) {
-    logs.push(...await getRange(fromBlock, Math.min(fromBlock + LOG_QUERY_BLOCK_SPAN - 1, latestBlock)));
-  }
-  return logs;
-}
-
 function claimTotals(staticUsdt: bigint, dynamicUsdt: bigint, grossGpc: bigint): ClaimTotals {
   const rewardUsdt = staticUsdt + dynamicUsdt;
   const staticGpc = rewardUsdt === 0n ? 0n : grossGpc * staticUsdt / rewardUsdt;
@@ -298,66 +264,13 @@ function claimTotals(staticUsdt: bigint, dynamicUsdt: bigint, grossGpc: bigint):
   };
 }
 
-function claimFromReceipt(receipt: unknown, beneficiary: string): ClaimTotals | null {
-  if (!receipt || typeof receipt !== "object") return null;
-  const logs = (receipt as { logs?: Array<{ topics?: readonly string[]; data?: string }> }).logs;
-  if (!logs) return null;
-
-  for (const log of logs) {
-    if (!log.topics || !log.data) continue;
-    try {
-      const parsed = MINING_INTERFACE.parseLog({ topics: log.topics, data: log.data });
-      if (!parsed || (parsed.name !== "Withdrawn" && parsed.name !== "Reinvested") || String(parsed.args.user).toLowerCase() !== beneficiary.toLowerCase()) continue;
-      return claimTotals(
-        parsed.args.staticRewardUsdt as bigint,
-        parsed.args.communityRewardUsdt as bigint,
-        parsed.args.grossGpc as bigint,
-      );
-    } catch {
-      // Ignore unrelated logs in the same transaction receipt.
-    }
-  }
-  return null;
-}
-
-async function loadTodayClaims(account: string) {
-  const empty: ClaimTotals = { gpc: 0n, usdt: 0n, staticGpc: 0n, dynamicGpc: 0n };
-  const latestBlock = await HISTORY_PROVIDER.getBlock("latest");
-  if (!latestBlock) return empty;
-
-  const cstOffset = 8 * 60 * 60;
-  const daySeconds = 24 * 60 * 60;
-  const todayStart = Math.floor((latestBlock.timestamp + cstOffset) / daySeconds) * daySeconds - cstOffset;
-  const todayEnd = todayStart + daySeconds;
-  const firstBlock = Math.max(MINING_DEPLOYMENT_BLOCK, latestBlock.number - 200_000);
-  const accountTopic = zeroPadValue(account, 32);
-  const rewardTopics = ["Withdrawn", "Reinvested"].map(name => MINING_INTERFACE.getEvent(name)!.topicHash);
-  const logs = (await Promise.all(rewardTopics.map(topic =>
-    getLogsInRanges(HISTORY_PROVIDER, [topic, accountTopic], latestBlock.number, firstBlock)
-  ))).flat();
-  const blockNumbers = [...new Set(logs.map(log => log.blockNumber))];
-  const blocks = await Promise.all(blockNumbers.map(blockNumber => HISTORY_PROVIDER.getBlock(blockNumber)));
-  const timestamps = new Map(blocks.filter(Boolean).map(block => [block!.number, block!.timestamp]));
-
-  return logs.reduce((total, log) => {
-    const timestamp = timestamps.get(log.blockNumber) || 0;
-    if (timestamp < todayStart || timestamp >= todayEnd) return total;
-    const parsed = MINING_INTERFACE.parseLog(log);
-    if (!parsed) return total;
-
-    const claim = claimTotals(
-      parsed.args.staticRewardUsdt as bigint,
-      parsed.args.communityRewardUsdt as bigint,
-      parsed.args.grossGpc as bigint,
-    );
-
-    return {
-      gpc: total.gpc + claim.gpc,
-      usdt: total.usdt + claim.usdt,
-      staticGpc: total.staticGpc + claim.staticGpc,
-      dynamicGpc: total.dynamicGpc + claim.dynamicGpc,
-    };
-  }, empty);
+async function loadTodayClaims(mining: Contract, account: string) {
+  const earnings = await mining.rewardsClaimedToday(account);
+  return claimTotals(
+    earnings.staticRewardUsdt as bigint,
+    earnings.communityRewardUsdt as bigint,
+    earnings.grossGpc as bigint,
+  );
 }
 
 function errorDetails(error: unknown) {
@@ -434,7 +347,7 @@ export default function Home() {
   const [currentTime, setCurrentTime] = useState(0);
   const [activeTab, setActiveTab] = useState<AppTab>("home");
   const [language, setLanguage] = useState<Language>("zh");
-  const [ledgerKind, setLedgerKind] = useState<LedgerKind | null>(null);
+  const [ledgerOpen, setLedgerOpen] = useState(false);
   const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([]);
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [ledgerError, setLedgerError] = useState<LocalizedStatus | null>(null);
@@ -488,8 +401,8 @@ export default function Home() {
     window.localStorage.setItem("gpc-language", nextLanguage);
   }
 
-  async function openLedger(kind: LedgerKind) {
-    setLedgerKind(kind);
+  async function openLedger() {
+    setLedgerOpen(true);
     setLedgerEntries([]);
     setLedgerError(null);
     window.scrollTo({ top: 0, behavior: "auto" });
@@ -506,9 +419,7 @@ export default function Home() {
       if (!isAddress(registryAddress) || registryAddress === ZERO_ADDRESS) throw new Error("History registry unavailable");
 
       const registry = new Contract(registryAddress, HISTORY_ABI, provider);
-      const result = kind === "power"
-        ? await registry.powerHistory(account, 0, 30)
-        : await registry.promotionQuotaHistory(account, 0, 30);
+      const result = await registry.powerHistory(account, 0, 30);
       const records = result.records as Array<{ amount: bigint; timestamp: bigint; kind: bigint }>;
       const entries = records.map((record, index): LedgerEntry => {
         const recordKind = Number(record.kind);
@@ -517,17 +428,14 @@ export default function Home() {
           2: { zh: "领取收益消耗", en: "Used to claim rewards" },
           3: { zh: "180 天未提现清零", en: "Expired after 180 days" },
           4: { zh: "3倍复投", en: "3x reinvestment" },
-        };
-        const quotaLabels: Record<number, LocalizedStatus> = {
-          1: { zh: "质押增加", en: "Added by staking" },
-          2: { zh: "直推奖励消耗", en: "Used for direct referral reward" },
+          5: { zh: "直推奖励消耗", en: "Used for direct referral reward" },
         };
         return {
           id: `${record.timestamp}-${recordKind}-${index}`,
           timestamp: Number(record.timestamp),
           direction: recordKind === 1 || recordKind === 4 ? "increase" : "decrease",
           amount: record.amount,
-          label: (kind === "power" ? powerLabels : quotaLabels)[recordKind] ?? { zh: "链上变更", en: "On-chain change" },
+          label: powerLabels[recordKind] ?? { zh: "链上变更", en: "On-chain change" },
         };
       });
       setLedgerEntries(entries);
@@ -539,7 +447,7 @@ export default function Home() {
   }
 
   function closeLedger() {
-    setLedgerKind(null);
+    setLedgerOpen(false);
     setLedgerError(null);
     window.scrollTo({ top: 0, behavior: "auto" });
   }
@@ -554,7 +462,7 @@ export default function Home() {
       setAccount("");
       setSnapshot(emptySnapshot);
       setCurrentTime(0);
-      setLedgerKind(null);
+      setLedgerOpen(false);
       setLedgerEntries([]);
       setLedgerError(null);
       setTodayClaimsError(false);
@@ -570,7 +478,7 @@ export default function Home() {
     };
   }, []);
 
-  const refresh = useCallback(async (activeProvider: BrowserProvider, activeAccount: string, confirmedClaims?: ClaimTotals) => {
+  const refresh = useCallback(async (activeProvider: BrowserProvider, activeAccount: string) => {
     const refreshId = ++refreshSequence.current;
     if (!isConfigured) {
       setStatus({ zh: "等待配置已部署的挖矿合约地址", en: "Waiting for the deployed mining contract address" });
@@ -583,7 +491,7 @@ export default function Home() {
     const autoWithdraw = new Contract(AUTO_WITHDRAW_ADDRESS, AUTO_CREDIT_ABI, activeProvider);
     const autoReinvest = new Contract(AUTO_REINVEST_ADDRESS, AUTO_CREDIT_ABI, activeProvider);
     setTodayClaimsError(false);
-    const todayClaimsPromise = loadTodayClaims(activeAccount);
+    const todayClaimsPromise = loadTodayClaims(mining, activeAccount);
     const [user, parent, totalPower, poolGpc, community, largestBranch, teamNodeCount, communityClaimedToday, usdtBalance, allowance, oracleAddress, burnedGpc, autoWithdrawCredits, autoReinvestCredits, autoWithdrawCreditPrice, autoReinvestCreditPrice] = await Promise.all([
       mining.users(activeAccount),
       mining.parentOf(activeAccount),
@@ -624,7 +532,6 @@ export default function Home() {
 
     setSnapshot({
       power: user.power,
-      promotionQuota: user.promotionQuota,
       nextWithdrawAt: Number(user.nextWithdrawAt),
       inactivityStartedAt: Number(user.inactivityStartedAt),
       parent,
@@ -638,10 +545,10 @@ export default function Home() {
       communityClaimedToday,
       totalReward: reward?.totalRewardUsdt ?? 0n,
       grossGpc: reward?.grossGpc ?? 0n,
-      claimedTodayGpc: confirmedClaims?.gpc ?? 0n,
-      claimedTodayUsdt: confirmedClaims?.usdt ?? 0n,
-      claimedTodayStaticGpc: confirmedClaims?.staticGpc ?? 0n,
-      claimedTodayDynamicGpc: confirmedClaims?.dynamicGpc ?? 0n,
+      claimedTodayGpc: 0n,
+      claimedTodayUsdt: 0n,
+      claimedTodayStaticGpc: 0n,
+      claimedTodayDynamicGpc: 0n,
       smallArea: community.smallArea,
       effectiveSmallArea: community.effectiveSmallArea,
       poolLimitedMode: reward?.poolLimitedMode ?? false,
@@ -657,17 +564,16 @@ export default function Home() {
     });
     void todayClaimsPromise.then(todayClaims => {
       if (refreshSequence.current !== refreshId) return;
-      const settledClaims = confirmedClaims && confirmedClaims.gpc > todayClaims.gpc ? confirmedClaims : todayClaims;
       setSnapshot(current => ({
         ...current,
-        claimedTodayGpc: settledClaims.gpc,
-        claimedTodayUsdt: settledClaims.usdt,
-        claimedTodayStaticGpc: settledClaims.staticGpc,
-        claimedTodayDynamicGpc: settledClaims.dynamicGpc,
+        claimedTodayGpc: todayClaims.gpc,
+        claimedTodayUsdt: todayClaims.usdt,
+        claimedTodayStaticGpc: todayClaims.staticGpc,
+        claimedTodayDynamicGpc: todayClaims.dynamicGpc,
       }));
     }).catch(() => {
       if (refreshSequence.current !== refreshId) return;
-      if (!confirmedClaims) setTodayClaimsError(true);
+      setTodayClaimsError(true);
     });
     setCurrentTime(Math.floor(Date.now() / 1000));
     setStatus(oracleReady
@@ -750,7 +656,6 @@ export default function Home() {
   async function runTransaction(
     label: LocalizedStatus,
     action: (signer: Awaited<ReturnType<BrowserProvider["getSigner"]>>) => Promise<{ wait: () => Promise<unknown> }>,
-    confirmedBeneficiary?: string,
   ) {
     if (!provider || !account) {
       await connectWallet();
@@ -768,22 +673,9 @@ export default function Home() {
       }
       const transaction = await action(signer);
       setStatus({ zh: `${label.zh}：等待链上确认`, en: `${label.en}: waiting for confirmation` });
-      const receipt = await transaction.wait();
-      const confirmedClaims = confirmedBeneficiary?.toLowerCase() === account.toLowerCase()
-        ? claimFromReceipt(receipt, confirmedBeneficiary)
-        : null;
-      if (confirmedClaims) {
-        setTodayClaimsError(false);
-        setSnapshot(current => ({
-          ...current,
-          claimedTodayGpc: confirmedClaims.gpc,
-          claimedTodayUsdt: confirmedClaims.usdt,
-          claimedTodayStaticGpc: confirmedClaims.staticGpc,
-          claimedTodayDynamicGpc: confirmedClaims.dynamicGpc,
-        }));
-      }
+      await transaction.wait();
       try {
-        await refresh(provider, account, confirmedClaims ?? undefined);
+        await refresh(provider, account);
       } catch {
         setStatus({ zh: `${label.zh}成功，其他链上数据稍后刷新`, en: `${label.en} successful; refresh other on-chain data shortly` });
         return true;
@@ -889,7 +781,7 @@ export default function Home() {
       const mining = new Contract(MINING_ADDRESS, MINING_ABI, signer);
       const estimatedGas = await mining.withdrawFor.estimateGas(serviceBeneficiary);
       return mining.withdrawFor(serviceBeneficiary, { gasLimit: gasLimitWithHeadroom(estimatedGas) });
-    }, serviceBeneficiary);
+    });
   }
 
   async function serviceReinvest() {
@@ -901,7 +793,7 @@ export default function Home() {
       const mining = new Contract(MINING_ADDRESS, MINING_ABI, signer);
       const estimatedGas = await mining.reinvestFor.estimateGas(serviceBeneficiary);
       return mining.reinvestFor(serviceBeneficiary, { gasLimit: gasLimitWithHeadroom(estimatedGas) });
-    }, serviceBeneficiary);
+    });
   }
 
   function withdraw() {
@@ -909,7 +801,7 @@ export default function Home() {
       const mining = new Contract(MINING_ADDRESS, MINING_ABI, signer);
       const estimatedGas = await mining.withdraw.estimateGas();
       return mining.withdraw({ gasLimit: gasLimitWithHeadroom(estimatedGas) });
-    }, account);
+    });
   }
 
   function reinvest() {
@@ -917,7 +809,7 @@ export default function Home() {
       const mining = new Contract(MINING_ADDRESS, MINING_ABI, signer);
       const estimatedGas = await mining.reinvest.estimateGas();
       return mining.reinvest({ gasLimit: gasLimitWithHeadroom(estimatedGas) });
-    }, account);
+    });
   }
 
   function openAutoCreditPurchase(kind: AutoCreditKind) {
@@ -1005,11 +897,11 @@ export default function Home() {
                   <div className="service-operator-row"><span>{text("当前支付钱包", "Current payer")}</span><strong>{shortAddress(account)}</strong></div>
                   <label htmlFor="service-beneficiary">{text("目标用户钱包地址", "Beneficiary wallet address")}</label>
                   <input id="service-beneficiary" value={serviceBeneficiary} onChange={event => setServiceBeneficiary(event.target.value.trim())} placeholder="0x..." autoComplete="off" autoCapitalize="none" inputMode="text" spellCheck={false} />
-                  <small><DappIcon name="shield" size={13} />{text("算力和额度记入目标用户，代提现和代复投权益也只归目标用户", "Power, quota, assisted claim proceeds and reinvested power belong only to the beneficiary")}</small>
+                  <small><DappIcon name="shield" size={13} />{text("算力记入目标用户，代提现和代复投权益也只归目标用户", "Power, assisted claim proceeds and reinvested power belong only to the beneficiary")}</small>
                 </article>
 
                 <article className="service-action-card">
-                  <div className="service-action-title"><span className="heading-icon"><DappIcon name="order" size={17} /></span><div><strong>{text("代报单", "Assisted staking")}</strong><small>{text("当前钱包支付 1000 USDT，目标用户获得 2000 算力和 1000 U 推广额度", "The current wallet pays 1,000 USDT; the beneficiary receives 2,000 power and 1,000 U referral quota")}</small></div></div>
+                  <div className="service-action-title"><span className="heading-icon"><DappIcon name="order" size={17} /></span><div><strong>{text("代报单", "Assisted staking")}</strong><small>{text("当前钱包支付 1000 USDT，目标用户获得 2000 算力", "The current wallet pays 1,000 USDT; the beneficiary receives 2,000 power")}</small></div></div>
                   <div className="wallet-row"><span>{text("当前钱包 USDT", "Current wallet USDT")}</span><strong>{compact(snapshot.usdtBalance, language)} USDT</strong></div>
                   {!hasEnoughUsdt ? (
                     <button className="service-action-button" disabled>{text("USDT 余额不足", "Insufficient USDT")}</button>
@@ -1036,23 +928,23 @@ export default function Home() {
           </section>
         )}
 
-        {ledgerKind && !serviceMode && (
+        {ledgerOpen && !serviceMode && (
           <section className="ledger-page" role="dialog" aria-modal="true" aria-labelledby="ledger-title">
             <header className="ledger-header">
               <button onClick={closeLedger} aria-label={text("返回质押页面", "Back to staking")}><DappIcon name="chevron" size={18} /></button>
-              <div><small>ON-CHAIN RECORDS</small><h1 id="ledger-title">{ledgerKind === "power" ? text("个人算力明细", "Personal Power History") : text("推广额度明细", "Referral Quota History")}</h1></div>
+              <div><small>ON-CHAIN RECORDS</small><h1 id="ledger-title">{text("个人算力明细", "Personal Power History")}</h1></div>
             </header>
             <article className="ledger-balance-card">
               <span>{text("当前余额", "Current balance")}</span>
-              <div><strong>{ledgerKind === "power" ? fixed(snapshot.power, language, 4) : compact(snapshot.promotionQuota, language)}</strong><small>{ledgerKind === "power" ? "POWER" : "U"}</small></div>
-              <p>{ledgerKind === "power" ? text("记录质押增加、提现消耗和到期清零", "Staking additions, claim usage, and expirations") : text("记录质押增加和直推奖励消耗", "Staking additions and direct referral usage")}</p>
+              <div><strong>{fixed(snapshot.power, language, 4)}</strong><small>POWER</small></div>
+              <p>{text("记录质押和复投增加、提现消耗、到期清零", "Staking and reinvestment additions, claim usage, and expirations")}</p>
             </article>
 
             <div className="ledger-list-heading"><strong>{text("增减记录", "Transactions")}</strong><span>{ledgerEntries.length}</span></div>
             {ledgerLoading ? (
               <div className="ledger-state"><span className="ledger-spinner" />{text("正在读取链上记录…", "Loading on-chain records…")}</div>
             ) : ledgerError ? (
-              <div className="ledger-state ledger-error"><span>{ledgerError[language]}</span><button onClick={() => openLedger(ledgerKind)}>{text("重新读取", "Retry")}</button></div>
+              <div className="ledger-state ledger-error"><span>{ledgerError[language]}</span><button onClick={openLedger}>{text("重新读取", "Retry")}</button></div>
             ) : ledgerEntries.length === 0 ? (
               <div className="ledger-state">{text("暂无增减记录", "No transactions yet")}</div>
             ) : (
@@ -1061,7 +953,7 @@ export default function Home() {
                   <article className="ledger-row" key={entry.id}>
                     <span className={`ledger-direction ${entry.direction}`}>{entry.direction === "increase" ? "+" : "−"}</span>
                     <div className="ledger-entry-info"><strong>{entry.label[language]}</strong><small>{entry.timestamp ? formatLedgerTime(entry.timestamp, language) : text("时间读取中", "Loading time")}</small><small>{text("链上存储记录", "On-chain stored record")}</small></div>
-                    <div className={`ledger-amount ${entry.direction}`}><strong>{entry.direction === "increase" ? "+" : "−"}{compact(entry.amount, language, 4)}</strong><small>{ledgerKind === "power" ? "POWER" : "U"}</small></div>
+                    <div className={`ledger-amount ${entry.direction}`}><strong>{entry.direction === "increase" ? "+" : "−"}{compact(entry.amount, language, 4)}</strong><small>POWER</small></div>
                   </article>
                 ))}
               </div>
@@ -1116,7 +1008,7 @@ export default function Home() {
           <div className="page-heading"><span>STAKING</span><h1>{text("GPC质押挖矿", "GPC Staking Mining")}</h1><p>{text("每次固定质押 1000 USDT，链上自动完成分账并增加算力。", "Stake a fixed 1,000 USDT. Allocation and mining power are handled on-chain.")}</p></div>
           <article className="order-card">
             <div className="order-value"><span>{text("质押金额", "Stake amount")}</span><div><strong>1000</strong><b>USDT</b></div></div>
-            <div className="order-receive"><span>{text("预计获得", "You receive")}</span><strong>{text("+2000 算力", "+2,000 Power")}</strong><strong>{text("+1000 U 推广额度", "+1,000 U Referral quota")}</strong></div>
+            <div className="order-receive"><span>{text("预计获得", "You receive")}</span><strong>{text("+2000 算力", "+2,000 Power")}</strong></div>
             <div className="allocation" aria-label={text("质押资金分配", "Stake allocation")}>
               <div style={{ width: promotionalDirectRewardActive ? "20%" : "10%" }} className="direct" />
               <div style={{ width: "10%" }} className="lp" />
@@ -1142,8 +1034,7 @@ export default function Home() {
           </article>
           <article className="order-info-card">
             <div><span>{text("质押间隔", "Stake interval")}</span><strong>{text("1 分钟", "1 minute")}</strong></div>
-            <button className="order-info-link" onClick={() => openLedger("power")} disabled={!account}><span>{text("个人算力", "Personal power")}</span><strong>{fixed(snapshot.power, language, 4)}</strong><DappIcon name="chevron" size={12} /></button>
-            <button className="order-info-link" onClick={() => openLedger("promotionQuota")} disabled={!account}><span>{text("推广额度", "Referral quota")}</span><strong>{compact(snapshot.promotionQuota, language)} U</strong><DappIcon name="chevron" size={12} /></button>
+            <button className="order-info-link" onClick={openLedger} disabled={!account}><span>{text("个人算力", "Personal power")}</span><strong>{fixed(snapshot.power, language, 4)}</strong><DappIcon name="chevron" size={12} /></button>
           </article>
         </div>
 
