@@ -315,7 +315,7 @@ function friendlyTransactionError(error: unknown, language: Language) {
   return details || localized("交易失败，请稍后重试", "Transaction failed. Try again shortly.");
 }
 
-type IconName = "home" | "order" | "team" | "user" | "wallet" | "withdraw" | "link" | "refresh" | "shield" | "chevron";
+type IconName = "home" | "order" | "team" | "user" | "wallet" | "withdraw" | "link" | "refresh" | "shield" | "chevron" | "clock" | "power";
 
 function DappIcon({ name, size = 20 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, React.ReactNode> = {
@@ -329,6 +329,8 @@ function DappIcon({ name, size = 20 }: { name: IconName; size?: number }) {
     refresh: <><path d="M20 6v5h-5" /><path d="M4 18v-5h5" /><path d="M18.5 9A7 7 0 0 0 6 6.5L4 11M5.5 15A7 7 0 0 0 18 17.5l2-4.5" /></>,
     shield: <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="m9 12 2 2 4-4" /></>,
     chevron: <path d="m9 18 6-6-6-6" />,
+    clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+    power: <path d="m13 2-9 12h7l-1 8 10-12h-7l1-8Z" />,
   };
 
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
@@ -1033,8 +1035,15 @@ export default function Home() {
             <div className="protect-note"><DappIcon name="shield" size={15} /><span>{text("5分钟观测 · 实时滚动6小时 · 不足6小时自动降级", "5-min observations · Live rolling 6H · Automatic fallback")}</span></div>
           </article>
           <article className="order-info-card">
-            <div><span>{text("质押间隔", "Stake interval")}</span><strong>{text("1 分钟", "1 minute")}</strong></div>
-            <button className="order-info-link" onClick={openLedger} disabled={!account}><span>{text("个人算力", "Personal power")}</span><strong>{fixed(snapshot.power, language, 4)}</strong><DappIcon name="chevron" size={12} /></button>
+            <div className="order-info-stat">
+              <span className="order-info-label"><span className="order-info-icon"><DappIcon name="clock" size={15} /></span>{text("质押间隔", "Stake interval")}</span>
+              <strong className="order-info-value">{text("1 分钟", "1 minute")}</strong>
+            </div>
+            <button className="order-info-stat order-info-link" onClick={openLedger} disabled={!account} aria-haspopup="dialog">
+              <span className="order-info-label"><span className="order-info-icon"><DappIcon name="power" size={15} /></span>{text("个人算力", "Personal power")}</span>
+              <strong className="order-info-value">{fixed(snapshot.power, language, 4)}</strong>
+              <span className="order-info-chevron"><DappIcon name="chevron" size={15} /></span>
+            </button>
           </article>
         </div>
 
