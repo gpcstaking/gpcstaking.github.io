@@ -56,7 +56,7 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(html, /10%.*筑 LP/);
   assert.match(html, /20%.*直推/);
   assert.match(html, /70%.*订单矿池/);
-  assert.match(html, /2026年10月1日起推广期结束，直推变更为10%，订单矿池变更为80%/);
+  assert.match(html, /推广期延长至2026年12月31日，2027年1月1日起直推恢复为10%，订单矿池变更为80%/);
   assert.doesNotMatch(html, /直推奖励需上级个人算力|推广期需 200 算力|奖励转运营/);
   assert.match(html, /每次固定质押 1000 USDT/);
   assert.match(html, /\+2000 算力/);
@@ -71,7 +71,7 @@ test("server-renders the GPC mining application shell", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   assert.match(source, /const MINING_ADDRESS = "0xfA2121198a3ed0c0E2C316Fe3b8D36508AE00b03"/);
   assert.match(source, /const ORDER_AMOUNT = 1_000n \* 10n \*\* 18n/);
-  assert.match(source, /const DIRECT_REWARD_PROMOTION_END = 1_790_784_000/);
+  assert.match(source, /const DIRECT_REWARD_PROMOTION_END = 1_798_732_800/);
   assert.match(source, /promotionalDirectRewardActive \? "20%" : "10%"/);
   assert.match(source, /promotionalDirectRewardActive \? "70%" : "80%"/);
   assert.match(source, /function USDT_TO_GPC\(\) view returns \(uint256\)/);

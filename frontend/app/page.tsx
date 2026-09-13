@@ -82,7 +82,7 @@ const ROUTER_ABI = [
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const ORDER_AMOUNT = 1_000n * 10n ** 18n;
-const DIRECT_REWARD_PROMOTION_END = 1_790_784_000;
+const DIRECT_REWARD_PROMOTION_END = 1_798_732_800; // 2027-01-01 00:00:00 UTC+8
 const WBNB_SWAP_AMOUNT = 50n * 10n ** 18n;
 const BPS = 10_000n;
 const USER_SWAP_SLIPPAGE_BPS = 30n; // 0.3% from the pre-signing router quote
@@ -1017,7 +1017,7 @@ export default function Home() {
               <div style={{ width: promotionalDirectRewardActive ? "70%" : "80%" }} className="stake-pool" />
             </div>
             <div className="fund-legend"><span><i className="direct" />{promotionalDirectRewardActive ? "20%" : "10%"} {text("直推", "Referral")}</span><span><i className="lp" />10% {text("筑 LP", "Build LP")}</span><span><i className="stake-pool" />{promotionalDirectRewardActive ? "70%" : "80%"} {text("订单矿池", "Order pool")}</span></div>
-            <div className="reward-schedule-note">{text("2026年10月1日起推广期结束，直推变更为10%，订单矿池变更为80%", "The promotion ends Oct 1, 2026: referral changes to 10% and the order pool to 80%")}</div>
+            <div className="reward-schedule-note">{text("推广期延长至2026年12月31日，2027年1月1日起直推恢复为10%，订单矿池变更为80%", "The promotion runs through Dec 31, 2026. From Jan 1, 2027, referral returns to 10% and the order pool changes to 80%")}</div>
             <div className="wallet-row"><span>{text("USDT 余额", "USDT balance")}</span><strong>{compact(snapshot.usdtBalance, language)} USDT</strong></div>
             {!account ? (
               <button className="main-action" onClick={connectWallet} disabled={busy}>{text("连接钱包", "Connect wallet")}</button>
