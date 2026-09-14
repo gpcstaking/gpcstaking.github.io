@@ -56,7 +56,7 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(html, /10%.*筑 LP/);
   assert.match(html, /20%.*直推/);
   assert.match(html, /70%.*订单矿池/);
-  assert.match(html, /推广期延长至2026年12月31日，2027年1月1日起直推恢复为10%，订单矿池变更为80%/);
+  assert.match(html, /2027年1月1日起直推恢复为10%，订单矿池变更为80%/);
   assert.doesNotMatch(html, /直推奖励需上级个人算力|推广期需 200 算力|奖励转运营/);
   assert.match(html, /每次固定质押 1000 USDT/);
   assert.match(html, /\+2000 算力/);

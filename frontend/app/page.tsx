@@ -1017,7 +1017,7 @@ export default function Home() {
               <div style={{ width: promotionalDirectRewardActive ? "70%" : "80%" }} className="stake-pool" />
             </div>
             <div className="fund-legend"><span><i className="direct" />{promotionalDirectRewardActive ? "20%" : "10%"} {text("直推", "Referral")}</span><span><i className="lp" />10% {text("筑 LP", "Build LP")}</span><span><i className="stake-pool" />{promotionalDirectRewardActive ? "70%" : "80%"} {text("订单矿池", "Order pool")}</span></div>
-            <div className="reward-schedule-note">{text("推广期延长至2026年12月31日，2027年1月1日起直推恢复为10%，订单矿池变更为80%", "The promotion runs through Dec 31, 2026. From Jan 1, 2027, referral returns to 10% and the order pool changes to 80%")}</div>
+            <div className="reward-schedule-note">{text("2027年1月1日起直推恢复为10%，订单矿池变更为80%", "From Jan 1, 2027, referral returns to 10% and the order pool changes to 80%")}</div>
             <div className="wallet-row"><span>{text("USDT 余额", "USDT balance")}</span><strong>{compact(snapshot.usdtBalance, language)} USDT</strong></div>
             {!account ? (
               <button className="main-action" onClick={connectWallet} disabled={busy}>{text("连接钱包", "Connect wallet")}</button>
