@@ -166,7 +166,6 @@ test("server-renders the GPC mining application shell", async () => {
   assert.match(source, /<article className="service-action-card withdraw-card">/);
   assert.match(source, /<article className="service-action-card reinvest-card">/);
   assert.match(source, /mining\.reinvestFor\.estimateGas\(serviceBeneficiary\)/);
-  assert.match(source, /https:\/\/bscrpc\.pancakeswap\.finance/);
   assert.match(source, /0xfA2121198a3ed0c0E2C316Fe3b8D36508AE00b03/);
   assert.doesNotMatch(source, /Configured mining address does not match the audited BSC proxy/);
   assert.match(source, /snapshot\.allowance !== ORDER_AMOUNT/);

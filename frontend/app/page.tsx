@@ -7,6 +7,7 @@ import {
   formatEther,
   isAddress,
 } from "ethers";
+import { connectInjectedWallet, onInjectedWalletReady, walletErrorCode, type InjectedWallet } from "../lib/wallet";
 
 const MINING_ADDRESS = "0xfA2121198a3ed0c0E2C316Fe3b8D36508AE00b03";
 const USDT_ADDRESS = "0x55d398326f99059fF775485246999027B3197955";
@@ -179,11 +180,7 @@ const emptySnapshot: Snapshot = {
 
 declare global {
   interface Window {
-    ethereum?: {
-      request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-      on?: (event: string, listener: (...args: unknown[]) => void) => void;
-      removeListener?: (event: string, listener: (...args: unknown[]) => void) => void;
-    };
+    ethereum?: InjectedWallet;
   }
 }
 
@@ -360,6 +357,8 @@ export default function Home() {
   const [autoCreditPurchase, setAutoCreditPurchase] = useState<AutoCreditKind | null>(null);
   const [autoCreditQuantity, setAutoCreditQuantity] = useState(1);
   const refreshSequence = useRef(0);
+  const walletConnectionPending = useRef(false);
+  const automaticConnectionAttempted = useRef(false);
 
   const text = (zh: string, en: string) => language === "zh" ? zh : en;
 
@@ -454,32 +453,6 @@ export default function Home() {
     window.scrollTo({ top: 0, behavior: "auto" });
   }
 
-  useEffect(() => {
-    const ethereum = window.ethereum;
-    if (!ethereum?.on) return;
-
-    const invalidateSession = () => {
-      refreshSequence.current += 1;
-      setProvider(null);
-      setAccount("");
-      setSnapshot(emptySnapshot);
-      setCurrentTime(0);
-      setLedgerOpen(false);
-      setLedgerEntries([]);
-      setLedgerError(null);
-      setTodayClaimsError(false);
-      setReferralsLoading(false);
-      setAutoCreditPurchase(null);
-      setStatus({ zh: "钱包账户或网络已变更，请重新连接", en: "Wallet account or network changed. Please reconnect." });
-    };
-    ethereum.on("accountsChanged", invalidateSession);
-    ethereum.on("chainChanged", invalidateSession);
-    return () => {
-      ethereum.removeListener?.("accountsChanged", invalidateSession);
-      ethereum.removeListener?.("chainChanged", invalidateSession);
-    };
-  }, []);
-
   const refresh = useCallback(async (activeProvider: BrowserProvider, activeAccount: string) => {
     const refreshId = ++refreshSequence.current;
     if (!isConfigured) {
@@ -493,7 +466,11 @@ export default function Home() {
     const autoWithdraw = new Contract(AUTO_WITHDRAW_ADDRESS, AUTO_CREDIT_ABI, activeProvider);
     const autoReinvest = new Contract(AUTO_REINVEST_ADDRESS, AUTO_CREDIT_ABI, activeProvider);
     setTodayClaimsError(false);
-    const todayClaimsPromise = loadTodayClaims(mining, activeAccount);
+    // Attach a rejection handler immediately while the other RPC reads are pending.
+    const todayClaimsPromise = loadTodayClaims(mining, activeAccount).then(
+      value => ({ value }),
+      () => ({ value: null }),
+    );
     const [user, parent, totalPower, poolGpc, community, largestBranch, teamNodeCount, communityClaimedToday, usdtBalance, allowance, oracleAddress, burnedGpc, autoWithdrawCredits, autoReinvestCredits, autoWithdrawCreditPrice, autoReinvestCreditPrice] = await Promise.all([
       mining.users(activeAccount),
       mining.parentOf(activeAccount),
@@ -532,6 +509,7 @@ export default function Home() {
       // on-chain full-TWAP, available-history, and spot-price fallback chain instead of stopping.
     }
 
+    if (refreshSequence.current !== refreshId) return;
     setSnapshot({
       power: user.power,
       nextWithdrawAt: Number(user.nextWithdrawAt),
@@ -564,8 +542,12 @@ export default function Home() {
       autoWithdrawCreditPrice,
       autoReinvestCreditPrice,
     });
-    void todayClaimsPromise.then(todayClaims => {
+    void todayClaimsPromise.then(({ value: todayClaims }) => {
       if (refreshSequence.current !== refreshId) return;
+      if (!todayClaims) {
+        setTodayClaimsError(true);
+        return;
+      }
       setSnapshot(current => ({
         ...current,
         claimedTodayGpc: todayClaims.gpc,
@@ -573,9 +555,6 @@ export default function Home() {
         claimedTodayStaticGpc: todayClaims.staticGpc,
         claimedTodayDynamicGpc: todayClaims.dynamicGpc,
       }));
-    }).catch(() => {
-      if (refreshSequence.current !== refreshId) return;
-      setTodayClaimsError(true);
     });
     setCurrentTime(Math.floor(Date.now() / 1000));
     setStatus(oracleReady
@@ -608,52 +587,67 @@ export default function Home() {
     }
   }
 
-  async function connectWallet() {
-    if (!window.ethereum) {
+  const connectWallet = useCallback(async () => {
+    if (walletConnectionPending.current) return;
+    const ethereum = window.ethereum;
+    if (!ethereum) {
       setStatus({ zh: "未检测到钱包，请安装 MetaMask 或兼容钱包", en: "No wallet detected. Install MetaMask or a compatible wallet." });
       return;
     }
+    walletConnectionPending.current = true;
     try {
       setBusy(true);
-      const chainId = await window.ethereum.request({ method: "eth_chainId" });
-      if (chainId !== BSC_CHAIN_ID) {
-        try {
-          await window.ethereum.request({
-            method: "wallet_switchEthereumChain",
-            params: [{ chainId: BSC_CHAIN_ID }],
-          });
-        } catch {
-          await addBscNetwork();
-        }
-      }
-      const nextProvider = new BrowserProvider(window.ethereum);
-      await nextProvider.send("eth_requestAccounts", []);
-      const signer = await nextProvider.getSigner();
-      const nextAccount = await signer.getAddress();
+      setStatus({ zh: "正在连接钱包，请在钱包中确认", en: "Connecting wallet. Confirm in your wallet if prompted." });
+      const { provider: nextProvider, account: nextAccount } = await connectInjectedWallet(ethereum);
       setProvider(nextProvider);
       setAccount(nextAccount);
       await refresh(nextProvider, nextAccount);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Wallet connection failed";
-      setStatus({ zh: message, en: message });
+      const code = walletErrorCode(error);
+      setStatus(code === 4001
+        ? { zh: "已取消连接，可点击连接钱包重试", en: "Connection cancelled. Click Connect to retry." }
+        : code === -32002
+          ? { zh: "钱包已有待处理请求，请在钱包中完成确认", en: "A wallet request is pending. Complete it in your wallet." }
+          : { zh: friendlyTransactionError(error, "zh"), en: friendlyTransactionError(error, "en") });
     } finally {
+      walletConnectionPending.current = false;
       setBusy(false);
     }
-  }
+  }, [refresh]);
 
-  async function addBscNetwork() {
-    if (!window.ethereum) throw new Error("未检测到兼容钱包");
-    await window.ethereum.request({
-      method: "wallet_addEthereumChain",
-      params: [{
-        chainId: BSC_CHAIN_ID,
-        chainName: "BNB Smart Chain Mainnet",
-        nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 },
-        rpcUrls: ["https://bscrpc.pancakeswap.finance"],
-        blockExplorerUrls: ["https://bscscan.com"],
-      }],
+  useEffect(() => {
+    let removeWalletListeners = () => {};
+    const stopDetection = onInjectedWalletReady(ethereum => {
+      const invalidateSession = () => {
+        refreshSequence.current += 1;
+        setProvider(null);
+        setAccount("");
+        setSnapshot(emptySnapshot);
+        setCurrentTime(0);
+        setLedgerOpen(false);
+        setLedgerEntries([]);
+        setLedgerError(null);
+        setTodayClaimsError(false);
+        setReferralsLoading(false);
+        setAutoCreditPurchase(null);
+        setStatus({ zh: "钱包账户或网络已变更，请重新连接", en: "Wallet account or network changed. Please reconnect." });
+      };
+      ethereum.on?.("accountsChanged", invalidateSession);
+      ethereum.on?.("chainChanged", invalidateSession);
+      removeWalletListeners = () => {
+        ethereum.removeListener?.("accountsChanged", invalidateSession);
+        ethereum.removeListener?.("chainChanged", invalidateSession);
+      };
+      if (!automaticConnectionAttempted.current) {
+        automaticConnectionAttempted.current = true;
+        void connectWallet();
+      }
     });
-  }
+    return () => {
+      stopDetection();
+      removeWalletListeners();
+    };
+  }, [connectWallet]);
 
   async function runTransaction(
     label: LocalizedStatus,
