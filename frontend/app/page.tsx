@@ -916,7 +916,7 @@ export default function Home() {
                 </article>
 
                 <article className="service-action-card reinvest-card">
-                  <div className="service-action-title"><span className="heading-icon"><DappIcon name="refresh" size={17} /></span><div><strong>{text("代复投", "Assisted reinvest")}</strong><small>{text("10% GPC 到运营钱包，90% 留在订单矿池并按3倍给目标用户增加算力", "10% GPC goes to operations; 90% stays in the order pool and adds 3x power to the beneficiary")}</small></div></div>
+                  <div className="service-action-title"><span className="heading-icon"><DappIcon name="refresh" size={17} /></span><div><strong>{text("代复投", "Assisted reinvest")}</strong></div></div>
                   <button className="service-action-button reinvest-secondary" onClick={serviceReinvest} disabled={busy || !isAddress(serviceBeneficiary)}>{text("确认代复投", "Confirm assisted reinvest")}</button>
                 </article>
               </>
